@@ -1,0 +1,28 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio 15
+VisualStudioVersion = 15.0.26430.16
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Wpf.NoXaml", "Wpf.NoXaml\Wpf.NoXaml.csproj", "{163F9B1C-504C-48A2-AF53-5639011259C5}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Wpf.NoXaml.Test", "Wpf.NoXaml.Test\Wpf.NoXaml.Test.csproj", "{DAE44CF1-91C2-4F4D-B9A1-66DA246AD81E}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{163F9B1C-504C-48A2-AF53-5639011259C5}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{163F9B1C-504C-48A2-AF53-5639011259C5}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{163F9B1C-504C-48A2-AF53-5639011259C5}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{163F9B1C-504C-48A2-AF53-5639011259C5}.Release|Any CPU.Build.0 = Release|Any CPU
+		{DAE44CF1-91C2-4F4D-B9A1-66DA246AD81E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{DAE44CF1-91C2-4F4D-B9A1-66DA246AD81E}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{DAE44CF1-91C2-4F4D-B9A1-66DA246AD81E}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{DAE44CF1-91C2-4F4D-B9A1-66DA246AD81E}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal
