@@ -1,23 +1,11 @@
-source C:\Users\Johannes\Workspace\NuGet
 source https://api.nuget.org/v3/index.json
-source https://www.nuget.org/api/v2/
 
-nuget FluentAssertions 4.19.4 restriction: >= net462
-nuget MahApps.Metro 1.5.0 restriction: >= net452
-nuget Newtonsoft.Json 10.0.3 restriction: >= net452
-nuget OneOf 2.1.104 restriction: >= net462
-nuget System.Collections.Immutable 1.4.0 restriction: >= net452
-nuget System.Interactive 3.1.1 restriction: >= net452
-nuget System.Reactive 3.1.1 restriction: >= net452
-nuget System.Reactive.Core 3.1.1 restriction: >= net452
-nuget System.Reactive.Interfaces 3.1.1 restriction: >= net452
-nuget System.Reactive.Linq 3.1.1 restriction: >= net452
-nuget System.Reactive.PlatformServices 3.1.1 restriction: >= net452
-nuget System.Reactive.Windows.Threading 3.1.1 restriction: >= net452
-nuget System.ValueTuple 4.4.0 restriction: >= net462
-nuget xunit 2.2.0 restriction: >= net452
-nuget xunit.abstractions 2.0.1 restriction: >= net452
-nuget xunit.assert 2.2.0 restriction: >= net452
-nuget xunit.core 2.2.0 restriction: >= net452
-nuget xunit.extensibility.core 2.2.0 restriction: >= net452
-nuget xunit.extensibility.execution 2.2.0 restriction: >= net452
+nuget FluentAssertions
+nuget MahApps.Metro
+nuget Newtonsoft.Json
+nuget OneOf
+nuget System.Collections.Immutable
+nuget System.Interactive 
+nuget System.Reactive
+nuget System.ValueTuple
+nuget xunit
