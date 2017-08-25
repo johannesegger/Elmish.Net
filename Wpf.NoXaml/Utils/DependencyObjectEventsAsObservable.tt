@@ -65,14 +65,13 @@ foreach (var o in types)
                 GetTypeName(o.Type) :
                 "element";
 #>
-        public static System.IObservable<<#= eventArgsTypeName #>> <#=evt.Name#>Observable<#= GetGenericParameters(eventArgsType) #>(<#= arguments #>)
+        public static System.IObservable<System.Reactive.EventPattern<<#= eventArgsTypeName #>>> <#=evt.Name#>Observable<#= GetGenericParameters(eventArgsType) #>(<#= arguments #>)
         {
             return Observable
                 .FromEventPattern<<#= fromEventPatternGenericArgs #>>(
                     h => <#= eventObject #>.<#= evt.Name #> += h,
                     h => <#= eventObject #>.<#= evt.Name #> -= h
-                )
-                .Select(p => p.EventArgs);
+                );
         }
 <#
         }

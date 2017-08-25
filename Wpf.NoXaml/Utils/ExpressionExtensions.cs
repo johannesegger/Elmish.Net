@@ -3,6 +3,7 @@ using System.Collections.Immutable;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
+using Expression = System.Linq.Expressions.Expression;
 
 namespace Wpf.NoXaml.Utils
 {
@@ -91,6 +92,16 @@ namespace Wpf.NoXaml.Utils
             return Expression
                 .Lambda<Func<T, TProp, T>>(p.value, propertyExpression.Parameters.Single(), valueParameter)
                 .Compile();
+        }
+
+        public static T Set<T, TProp>(this T root, Expression<Func<T, TProp>> expr, TProp value)
+        {
+            return expr.CreateImmutableSetter()(root, value);
+        }
+
+        public static T Set<T, TProp>(this T root, Expression<Func<T, TProp>> expr, Func<T, TProp> fn)
+        {
+            return expr.CreateImmutableSetter()(root, fn(root));
         }
     }
 }

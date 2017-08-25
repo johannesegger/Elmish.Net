@@ -4,20 +4,22 @@ using System.Collections.Immutable;
 
 namespace Wpf.NoXaml
 {
-    public class Model
+    public class State
     {
-        public static readonly Model Empty =
-            new Model(default(DateTime), TodoItem.Empty, new TodoItem[0]);
+        public static readonly State Empty =
+            new State(default(DateTime), TodoItem.Empty, new TodoItem[0], false);
 
         public DateTime CurrentTime { get; }
         public TodoItem NewItem { get; }
         public ImmutableList<TodoItem> TodoItems { get; }
+        public bool IsSaving { get; }
 
-        public Model(DateTime currentTime, TodoItem newItem, IEnumerable<TodoItem> todoItems)
+        public State(DateTime currentTime, TodoItem newItem, IEnumerable<TodoItem> todoItems, bool isSaving)
         {
             CurrentTime = currentTime;
             NewItem = newItem;
             TodoItems = todoItems.ToImmutableList();
+            IsSaving = isSaving;
         }
     }
 

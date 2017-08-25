@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Diagnostics;
 using System.Globalization;
@@ -42,104 +43,245 @@ namespace Wpf.NoXaml
     {
         public MainWindow()
         {
-            var modelSubject = new BehaviorSubject<Model>(Model.Empty);
-            var rootLens = Lens.Create(modelSubject);
+            //modelSubject
+            //    .Subscribe(model => Debug.WriteLine(JsonConvert.SerializeObject(model)));
 
-            modelSubject
-                .Subscribe(model => Debug.WriteLine(JsonConvert.SerializeObject(model)));
-
-            var currentTimeLens = rootLens.Focus(model => model.CurrentTime);
-            Observable
-                .Interval(TimeSpan.FromMilliseconds(1))
-                .Select(_ => DateTime.Now)
-                .Take(TimeSpan.FromSeconds(10))
-                .ObserveOnDispatcher()
-                .Subscribe(currentTimeLens.Set);
+            //var currentTimeLens = rootLens.Focus(model => model.CurrentTime);
+            //Observable
+            //    .Interval(TimeSpan.FromMilliseconds(1))
+            //    .Select(_ => DateTime.Now)
+            //    .Take(TimeSpan.FromSeconds(10))
+            //    .ObserveOnDispatcher()
+            //    .Subscribe(currentTimeLens.Set);
 
             // From DB
-            var todoItemsLens = rootLens.Focus(model => model.TodoItems);
-            ImmutableList<TodoItem>
+            var initialState = State
                 .Empty
-                .Add(new TodoItem("Buy shoes", new DateTime(2017, 9, 11), true))
-                .Add(new TodoItem("Clean house", new DateTime(2017, 8, 20), false))
-                .Then(todoItemsLens.Set);
-
-            var newItemLens = rootLens.Focus(model => model.NewItem);
+                .Set(
+                    p => p.TodoItems,
+                    ImmutableList<TodoItem>
+                        .Empty
+                        .Add(new TodoItem("Buy shoes", new DateTime(2017, 9, 11), true))
+                        .Add(new TodoItem("Clean house", new DateTime(2017, 8, 20), false)));
 
             Title = "Hello, XAML-free WPF";
-            Content = new StackPanel
-            {
-                Children =
+
+            var messageSubject = new Subject<Message>();
+            Dispatch<Message> dispatch = messageSubject.OnNext;
+
+            var initialUpdateResult = (State: initialState, Cmd: Cmd.None<Message>());
+
+            messageSubject
+                .Scan(initialUpdateResult, (updateResult, message) => Update(updateResult.State, message))
+                //.Do(updateResult => updateResult.Cmd.Subs.ForEach(sub => sub(dispatch)))
+                //.Select(p => p.State)
+                .StartWith(initialUpdateResult)
+                .Do(updateResult => Debug.WriteLine(JsonConvert.SerializeObject(updateResult.State)))
+                .Select(updateResult =>
                 {
-                    new TextBlock()
-                        .Bind(o => o.OneWay(
-                            p => p.Text,
-                            rootLens.Focus(model => model.CurrentTime),
-                            d => $"Current time: {d.ToString("O", CultureInfo.CurrentUICulture)}"))
-                        .Element,
-                    new DockPanel
+                    var result = View(updateResult.State, dispatch);
+                    return (View: result, Cmd: updateResult.Cmd);
+                })
+                .ObserveOnDispatcher()
+                .Subscribe(p =>
+                {
+                    Content = p.View.Materialize();
+                    p.Cmd.Subs.ForEach(sub => sub(dispatch));
+                });
+        }
+
+        private static (State, Cmd<Message>) Update(State state, Message message)
+        {
+            return message.Match(
+                (Message.AddTodo m) =>
+                {
+                    var todoItem = state.NewItem;
+                    var cmds = Cmd.Batch(
+                        Cmd.OfMsg<Message>(new Message.DisableAdd()),
+                        Cmd.OfAsync<Message>(
+                            () => Task.Delay(2000),
+                            new Message.TodoAddSuccess(todoItem),
+                            e => new Message.TodoAddError(todoItem)));
+                    return (state, cmds);
+                },
+                (Message.DisableAdd m) =>
+                {
+                    var newState = state
+                        .Set(p => p.IsSaving, true);
+                    return (newState, Cmd.None<Message>());
+                },
+                (Message.EnableAdd m) =>
+                {
+                    var newState = state
+                        .Set(p => p.IsSaving, false);
+                    return (newState, Cmd.None<Message>());
+                },
+                (Message.TodoAddSuccess m) =>
+                {
+                    var newState = state
+                        .Set(p => p.TodoItems, state.TodoItems.Add(state.NewItem))
+                        .Set(p => p.NewItem, TodoItem.Empty);
+                    return (newState, Cmd.OfMsg<Message>(new Message.EnableAdd()));
+                },
+                (Message.TodoAddError m) =>
+                {
+                    // TODO notify user
+                    return (state, Cmd.OfMsg<Message>(new Message.EnableAdd()));
+                },
+                (Message.SetNewTodoDueDate m) =>
+                {
+                    if (DateTime.TryParse(m.DueDate, CultureInfo.CurrentUICulture, DateTimeStyles.None, out var dueTime))
                     {
-                        Children =
-                        {
-                            new Button { Content = "+" }
+                        var newState = state
+                            .Set(p => p.NewItem.DueTime, dueTime);
+                        return (newState, Cmd.None<Message>());
+                    }
+                    // TODO add error handling
+                    return (state, Cmd.None<Message>());
+                },
+                (Message.SetNewTodoTitle m) =>
+                {
+                    var newState = state
+                        .Set(p => p.NewItem.Title, m.Title);
+                    return (newState, Cmd.None<Message>());
+                },
+                (Message.ToggleDone m) =>
+                {
+                    TodoItem Update(TodoItem item)
+                    {
+                        return item == m.TodoItem
+                            ? item.Set(p => p.Done, !item.Done)
+                            : item;
+                    }
+                    var newState = state
+                        .Set(p => p.TodoItems, state.TodoItems.Select(Update));
+                    return (newState, Cmd.None<Message>());
+                });
+        }
+
+        private static IVNode View(State state, Dispatch<Message> dispatch)
+        {
+            return VNode.Create<StackPanel>()
+                .Set(
+                    p => p.Children,
+                    VNode.Create<TextBlock>()
+                        .Set(p => p.Text, state.CurrentTime.ToString("O", CultureInfo.CurrentUICulture)),
+                    VNode.Create<DockPanel>()
+                        .Set(
+                            p => p.Children,
+                            VNode.Create<Button>()
                                 .Attach(DockPanel.DockProperty, Dock.Right)
-                                .Bind(o => o.Command(
-                                    o.Element.ClickObservable(),
-                                    newItemLens.Select(item => !string.IsNullOrWhiteSpace(item.Title)),
-                                    async (_, ct) =>
-                                    {
-                                        // TODO extract logic
-                                        await Task.Delay(TimeSpan.FromSeconds(2), ct);
-                                        rootLens
-                                            .ExecuteAtomic(lens =>
-                                            {
-                                                lens
-                                                    .Focus(model => model.TodoItems)
-                                                    .Update(todoItems => lens
-                                                        .Focus(model => model.NewItem)
-                                                        .Exchange(TodoItem.Empty)
-                                                        .Then(todoItems.Add));
-                                            });
-                                    }))
-                                .Element,
-                            new TextBox()
+                                .Set(p => p.Content, "+")
+                                .Set(p => p.IsEnabled, !string.IsNullOrWhiteSpace(state.NewItem.Title) && !state.IsSaving)
+                                .OnEvent(p => p.ClickObservable(), _ => dispatch(new Message.AddTodo())),
+                            VNode.Create<TextBox>()
                                 .Attach(DockPanel.DockProperty, Dock.Right)
-                                .Bind(o => o.TwoWay(
-                                    p => p.Text,
-                                    newItemLens.Focus(model => model.DueTime),
-                                    d => DateTime.Parse(d, CultureInfo.CurrentUICulture), // TODO add error handling
-                                    d => d.ToString(CultureInfo.CurrentUICulture)))
-                                .Element,
-                            new TextBox()
+                                .Set(p => p.Text, state.NewItem.DueTime.ToString(CultureInfo.CurrentUICulture))
+                                .OnEvent(p => p.TextChangedObservable().Select(e => ((TextBox)e.Sender).Text), p => dispatch(new Message.SetNewTodoDueDate(p))),
+                            VNode.Create<TextBox>()
                                 .Attach(TextBoxHelper.WatermarkProperty, "What do you want to do?")
-                                .Bind(o => o.TwoWay(p => p.Text, newItemLens.Focus(model => model.Title)))
-                                .Element
-                        }
-                    },
-                    new ItemsControl()
-                        .Bind(o => o.Collection(
+                                .Set(p => p.Text, state.NewItem.Title)
+                                .OnEvent(p => p.TextChangedObservable().Select(e => ((TextBox)e.Sender).Text), p => dispatch(new Message.SetNewTodoTitle(p)))),
+                    VNode.Create<ItemsControl>()
+                        .Set(
                             p => p.Items,
-                            rootLens.Focus<IImmutableList<TodoItem>>(model => model.TodoItems),
-                            (personLens, registerBinding) =>
-                                new StackPanel
+                            state.TodoItems
+                                .Select(todoItem =>
                                 {
-                                    Orientation = Orientation.Horizontal,
-                                    Children =
-                                    {
-                                        new TextBlock()
-                                            .Bind().OneWay(p => p.Text, personLens.Focus(p => p.Title))
-                                            .Register(registerBinding),
-                                        new TextBlock()
-                                            .Bind().OneWay(p => p.Text, personLens.Focus(p => p.DueTime), d => d.ToString(CultureInfo.CurrentUICulture))
-                                            .Register(registerBinding),
-                                        new CheckBox()
-                                            .Bind().TwoWay(p => p.IsChecked, personLens.Focus(p => p.Done), p => p ?? false, p => p)
-                                            .Register(registerBinding)
-                                    }
-                                }))
-                        .Element
-                }
-            };
+                                    return VNode.Create<StackPanel>()
+                                        .Set(p => p.Orientation, Orientation.Horizontal)
+                                        .Set(
+                                            p => p.Children,
+                                            VNode.Create<TextBlock>().Set(p => p.Text, todoItem.Title),
+                                            VNode.Create<TextBlock>().Set(p => p.Text, todoItem.DueTime.ToString(CultureInfo.CurrentUICulture)),
+                                            VNode.Create<CheckBox>()
+                                                .Set(p => p.IsChecked, todoItem.Done)
+                                                .OnEvent(p => p.CheckedObservable(), _ => dispatch(new Message.ToggleDone(todoItem)))
+                                                .OnEvent(p => p.UncheckedObservable(), _ => dispatch(new Message.ToggleDone(todoItem))));
+                                })));
         }
     }
+
+    public class Cmd<TMessage>
+    {
+        public Cmd(IEnumerable<Sub<TMessage>> subs)
+        {
+            Subs = subs.ToList();
+        }
+
+        public IReadOnlyCollection<Sub<TMessage>> Subs { get; }
+    }
+
+    public static class Cmd
+    {
+        public static Cmd<TMessage> None<TMessage>()
+        {
+            return new Cmd<TMessage>(new Sub<TMessage>[0]);
+        }
+
+        public static Cmd<TMessage> OfSub<TMessage>(Sub<TMessage> sub)
+        {
+            return new Cmd<TMessage>(new[] { sub });
+        }
+
+        public static Cmd<TMessage> OfMsg<TMessage>(TMessage message)
+        {
+            return OfSub<TMessage>(dispatch => dispatch(message));
+        }
+
+        public static Cmd<TMessage> Batch<TMessage>(IEnumerable<Cmd<TMessage>> cmds)
+        {
+            return new Cmd<TMessage>(cmds.SelectMany(p => p.Subs));
+        }
+
+        public static Cmd<TMessage> Batch<TMessage>(params Cmd<TMessage>[] cmds)
+        {
+            return Batch(cmds.AsEnumerable());
+        }
+
+        public static Cmd<TMessage> OfAsync<TResult, TMessage>(
+            Func<Task<TResult>> action,
+            Func<TResult, TMessage> ofSuccess,
+            Func<Exception, TMessage> ofError)
+        {
+            async void Sub(Dispatch<TMessage> dispatch)
+            {
+                try
+                {
+                    dispatch(ofSuccess(await action()));
+                }
+                catch (Exception e)
+                {
+                    dispatch(ofError(e));
+                }
+            }
+
+            return OfSub<TMessage>(Sub);
+        }
+
+        public static Cmd<TMessage> OfAsync<TMessage>(
+            Func<Task> action,
+            TMessage success,
+            Func<Exception, TMessage> ofError)
+        {
+            async void Sub(Dispatch<TMessage> dispatch)
+            {
+                try
+                {
+                    await action();
+                    dispatch(success);
+                }
+                catch (Exception e)
+                {
+                    dispatch(ofError(e));
+                }
+            }
+
+            return OfSub<TMessage>(Sub);
+        }
+    }
+
+    public delegate void Dispatch<in TMessage>(TMessage message);
+
+    public delegate void Sub<out TMessage>(Dispatch<TMessage> dispatch);
 }
