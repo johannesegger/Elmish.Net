@@ -36,54 +36,73 @@ namespace Wpf.NoXaml.Utils
 
     public static class VNodeExtensions
     {
-        public static VNode<T> Set<T, TProp>(this VNode<T> node, Expression<Func<T, TProp>> propertyExpression, VNode<TProp> value)
+        private static VNode<T> Set<T, TProp>(
+            this VNode<T> node,
+            Expression<Func<T, TProp>> propertyExpression,
+            Func<TProp> getValue)
         {
             var setter = propertyExpression.CreateSetter();
             return new VNode<T>(() =>
             {
                 var o = node.Materialize();
-                setter(o, value.Materialize());
+                setter(o, getValue());
                 return o;
             });
         }
 
-        public static VNode<T> Set<T>(this VNode<T> node, Expression<Func<T, IList>> propertyExpression, params IVNode[] nodes)
+        public static VNode<T> Set<T, TProp>(this VNode<T> node, Expression<Func<T, TProp>> propertyExpression, VNode<TProp> value)
         {
-            return node.Set(propertyExpression, nodes.AsEnumerable());
-        }
-
-        public static VNode<T> Set<T>(this VNode<T> node, Expression<Func<T, IList>> propertyExpression, IEnumerable<IVNode> nodes)
-        {
-            var getter = propertyExpression.Compile();
-            var nodeList = nodes.ToList();
-            return new VNode<T>(() =>
-            {
-                var o = node.Materialize();
-                var collection = getter(o);
-                nodeList
-                    .Select(n => n.Materialize())
-                    .ForEach(n => collection.Add(n));
-                return o;
-            });
+            return node.Set(propertyExpression, value.Materialize);
         }
 
         public static VNode<T> Set<T, TProp>(this VNode<T> node, Expression<Func<T, TProp>> propertyExpression, TProp value)
         {
-            var setter = propertyExpression.CreateSetter();
+            return node.Set(propertyExpression, () => value);
+        }
+
+        private static VNode<T> Set<T>(
+            this VNode<T> node,
+            Expression<Func<T, IList>> propertyExpression,
+            Func<IEnumerable> getValues)
+        {
+            var getter = propertyExpression.Compile();
             return new VNode<T>(() =>
             {
                 var o = node.Materialize();
-                setter(o, value);
+                var collection = getter(o);
+                foreach (var value in getValues())
+                {
+                    collection.Add(value);
+                }
                 return o;
             });
         }
 
+        public static VNode<T> SetChildren<T>(this VNode<T> node, Expression<Func<T, IList>> propertyExpression, IEnumerable<IVNode> nodes)
+        {
+            return node.Set(propertyExpression, () => nodes.Select(n => n.Materialize()));
+        }
+
+        public static VNode<T> SetChildren<T>(this VNode<T> node, Expression<Func<T, IList>> propertyExpression, params IVNode[] nodes)
+        {
+            return node.SetChildren(propertyExpression, nodes.AsEnumerable());
+        }
+
+        public static VNode<T> SetChildren<T>(this VNode<T> node, Expression<Func<T, IList>> propertyExpression, IEnumerable<object> nodes)
+        {
+            return node.Set(propertyExpression, () => nodes);
+        }
+
+        public static VNode<T> SetChildren<T>(this VNode<T> node, Expression<Func<T, IList>> propertyExpression, params object[] nodes)
+        {
+            return node.SetChildren(propertyExpression, nodes.AsEnumerable());
+        }
+
         public static VNode<T> OnEvent<T, TProp>(
             this VNode<T> node,
-            Expression<Func<T, IObservable<TProp>>> propertyExpression,
+            Func<T, IObservable<TProp>> getter,
             Action<TProp> dispatchMessage)
         {
-            var getter = propertyExpression.Compile();
             return new VNode<T>(() =>
             {
                 var o = node.Materialize();

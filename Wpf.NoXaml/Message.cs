@@ -2,74 +2,20 @@
 
 namespace Wpf.NoXaml
 {
-    public abstract class Message : OneOfBase<
-        Message.AddTodo,
-        Message.DisableAdd,
-        Message.EnableAdd,
-        Message.TodoAddSuccess,
-        Message.TodoAddError,
-        Message.SetNewTodoDueDate,
-        Message.SetNewTodoTitle,
-        Message.ToggleDone>
+    public abstract class Message : OneOfBase<Message.MoveLocationMessage>
     {
-        public class AddTodo : Message { }
-
-        public class SetNewTodoTitle : Message
+        public class MoveLocationMessage : Message
         {
-            public string Title { get; }
-
-            public SetNewTodoTitle(string title)
+            public MoveLocationMessage(Area area, int coordinateIndex, Coordinate coordinate)
             {
-                Title = title;
+                Area = area;
+                CoordinateIndex = coordinateIndex;
+                Coordinate = coordinate;
             }
-        }
 
-        public class SetNewTodoDueDate : Message
-        {
-            public string DueDate { get; }
-
-            public SetNewTodoDueDate(string dueDate)
-            {
-                DueDate = dueDate;
-            }
-        }
-
-        public class ToggleDone : Message
-        {
-            public TodoItem TodoItem { get; }
-
-            public ToggleDone(TodoItem todoItem)
-            {
-                TodoItem = todoItem;
-            }
-        }
-
-        public class DisableAdd : Message
-        {
-        }
-
-        public class TodoAddSuccess : Message
-        {
-            public TodoItem TodoItem { get; }
-
-            public TodoAddSuccess(TodoItem todoItem)
-            {
-                TodoItem = todoItem;
-            }
-        }
-
-        public class TodoAddError : Message
-        {
-            public TodoItem TodoItem { get; }
-
-            public TodoAddError(TodoItem todoItem)
-            {
-                TodoItem = todoItem;
-            }
-        }
-
-        public class EnableAdd : Message
-        {
+            public Area Area { get; }
+            public int CoordinateIndex { get; }
+            public Coordinate Coordinate { get; }
         }
     }
 }

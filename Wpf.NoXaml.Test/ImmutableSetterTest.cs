@@ -31,29 +31,45 @@ namespace Wpf.NoXaml.Test
             result.B.D.Should().BeSameAs(a.B.D);
         }
 
-        [Fact]
-        public void ShouldWorkWithCollections()
+        public static IEnumerable<object[]> CollectionExpressionTestData
         {
-            // Compiler infers the following as `o => o.B.CList.get_Item(1).Value`
-            // Expression<Func<A, string>> expr = o => o.B.CList[1].Value;
-            var parameter = Expression.Parameter(typeof(A), "o");
-            var expr = Expression.Lambda<Func<A, string>>(
-                Expression.Property(
-                    Expression.MakeIndex(
+            get
+            {
+                yield return new[]
+                {
+                    (Expression<Func<A, string>>)(o => o.B.CList[1].Value)
+                };
+
+                // Compiler infers the following as `o => o.B.CList.get_Item(1).Value`
+                // Expression<Func<A, string>> expr = o => o.B.CList[1].Value;
+                var parameter = Expression.Parameter(typeof(A), "o");
+                yield return new[]
+                {
+                    Expression.Lambda<Func<A, string>>(
                         Expression.Property(
-                            Expression.Property(parameter, typeof(A).GetProperty(nameof(A.B))),
-                            typeof(B).GetProperty(nameof(B.CList))),
-                        typeof(IReadOnlyList<C>).GetProperty("Item"),
-                        new[] { Expression.Constant(1) }),
-                    typeof(C).GetProperty(nameof(C.Value))),
-                parameter);
+                            Expression.MakeIndex(
+                                Expression.Property(
+                                    Expression.Property(parameter, typeof(A).GetProperty(nameof(A.B))),
+                                    typeof(B).GetProperty(nameof(B.CList))),
+                                typeof(IReadOnlyList<C>).GetProperty("Item"),
+                                new[] { Expression.Constant(1) }),
+                            typeof(C).GetProperty(nameof(C.Value))),
+                        parameter)
+                };
+            }
+        }
+
+        [Theory]
+        [MemberData(nameof(CollectionExpressionTestData))]
+        public void ShouldWorkWithCollections(Expression<Func<A, string>> expr)
+        {
             var setter = expr.CreateImmutableSetter();
             var a = new A(new B(new C("0"), new D("0"), new [] { new C("0"), new C("1"), new C("2") }));
             var result = setter(a, "11");
             result.B.CList.Select(c => c.Value).Should().Equal("0", "11", "2");
         }
 
-        private class A
+        public class A
         {
             public A(B b)
             {
@@ -63,7 +79,7 @@ namespace Wpf.NoXaml.Test
             public B B { get; }
         }
 
-        private class B
+        public class B
         {
             public B(C c, D d, IEnumerable<C> cList)
             {
@@ -77,7 +93,7 @@ namespace Wpf.NoXaml.Test
             public ImmutableList<C> CList { get; }
         }
 
-        private class C
+        public class C
         {
             public C(string value)
             {
@@ -87,7 +103,7 @@ namespace Wpf.NoXaml.Test
             public string Value { get; }
         }
 
-        private class D
+        public class D
         {
             public D(string value)
             {

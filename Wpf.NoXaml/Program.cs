@@ -9,9 +9,13 @@ using System.Reactive.Subjects;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Media;
 using MahApps.Metro.Controls;
+using Microsoft.Maps.MapControl.WPF;
 using Newtonsoft.Json;
 using Wpf.NoXaml.Utils;
+using System.Windows.Data;
+using Microsoft.Maps.MapControl.WPF.Overlays;
 
 namespace Wpf.NoXaml
 {
@@ -58,11 +62,11 @@ namespace Wpf.NoXaml
             var initialState = State
                 .Empty
                 .Set(
-                    p => p.TodoItems,
-                    ImmutableList<TodoItem>
+                    p => p.Areas,
+                    ImmutableList<Area>
                         .Empty
-                        .Add(new TodoItem("Buy shoes", new DateTime(2017, 9, 11), true))
-                        .Add(new TodoItem("Clean house", new DateTime(2017, 8, 20), false)));
+                        .Add(new Area(new [] { new Coordinate(47.946812, 13.777095), new Coordinate(47.944375, 13.777380), new Coordinate(47.944338, 13.776286), new Coordinate(47.946508, 13.776049), new Coordinate(47.946485, 13.776685) }, "Enser"))
+                        .Add(new Area(new [] { new Coordinate(47.946927, 13.777057), new Coordinate(47.947813, 13.776992), new Coordinate(47.948885, 13.780077), new Coordinate(47.948237, 13.780352) }, "Galler")));
 
             Title = "Hello, XAML-free WPF";
 
@@ -73,8 +77,6 @@ namespace Wpf.NoXaml
 
             messageSubject
                 .Scan(initialUpdateResult, (updateResult, message) => Update(updateResult.State, message))
-                //.Do(updateResult => updateResult.Cmd.Subs.ForEach(sub => sub(dispatch)))
-                //.Select(p => p.State)
                 .StartWith(initialUpdateResult)
                 .Do(updateResult => Debug.WriteLine(JsonConvert.SerializeObject(updateResult.State)))
                 .Select(updateResult =>
@@ -93,195 +95,173 @@ namespace Wpf.NoXaml
         private static (State, Cmd<Message>) Update(State state, Message message)
         {
             return message.Match(
-                (Message.AddTodo m) =>
+                (Message.MoveLocationMessage m) =>
                 {
-                    var todoItem = state.NewItem;
-                    var cmds = Cmd.Batch(
-                        Cmd.OfMsg<Message>(new Message.DisableAdd()),
-                        Cmd.OfAsync<Message>(
-                            () => Task.Delay(2000),
-                            new Message.TodoAddSuccess(todoItem),
-                            e => new Message.TodoAddError(todoItem)));
-                    return (state, cmds);
-                },
-                (Message.DisableAdd m) =>
-                {
-                    var newState = state
-                        .Set(p => p.IsSaving, true);
-                    return (newState, Cmd.None<Message>());
-                },
-                (Message.EnableAdd m) =>
-                {
-                    var newState = state
-                        .Set(p => p.IsSaving, false);
-                    return (newState, Cmd.None<Message>());
-                },
-                (Message.TodoAddSuccess m) =>
-                {
-                    var newState = state
-                        .Set(p => p.TodoItems, state.TodoItems.Add(state.NewItem))
-                        .Set(p => p.NewItem, TodoItem.Empty);
-                    return (newState, Cmd.OfMsg<Message>(new Message.EnableAdd()));
-                },
-                (Message.TodoAddError m) =>
-                {
-                    // TODO notify user
-                    return (state, Cmd.OfMsg<Message>(new Message.EnableAdd()));
-                },
-                (Message.SetNewTodoDueDate m) =>
-                {
-                    if (DateTime.TryParse(m.DueDate, CultureInfo.CurrentUICulture, DateTimeStyles.None, out var dueTime))
+                    Area Update(Area area)
                     {
-                        var newState = state
-                            .Set(p => p.NewItem.DueTime, dueTime);
-                        return (newState, Cmd.None<Message>());
+                        if (area == m.Area)
+                        {
+                            return area.Set(p => p.Coordinates[m.CoordinateIndex], m.Coordinate);
+                        }
+
+                        return area;
                     }
-                    // TODO add error handling
-                    return (state, Cmd.None<Message>());
-                },
-                (Message.SetNewTodoTitle m) =>
-                {
-                    var newState = state
-                        .Set(p => p.NewItem.Title, m.Title);
-                    return (newState, Cmd.None<Message>());
-                },
-                (Message.ToggleDone m) =>
-                {
-                    TodoItem Update(TodoItem item)
-                    {
-                        return item == m.TodoItem
-                            ? item.Set(p => p.Done, !item.Done)
-                            : item;
-                    }
-                    var newState = state
-                        .Set(p => p.TodoItems, state.TodoItems.Select(Update));
+                    var newState = state.Set(p => p.Areas, state.Areas.Select(Update));
                     return (newState, Cmd.None<Message>());
                 });
         }
 
         private static IVNode View(State state, Dispatch<Message> dispatch)
         {
+            var center = GetCenter(state.Areas);
+
             return VNode.Create<StackPanel>()
-                .Set(
+                .SetChildren(
                     p => p.Children,
-                    VNode.Create<TextBlock>()
-                        .Set(p => p.Text, state.CurrentTime.ToString("O", CultureInfo.CurrentUICulture)),
-                    VNode.Create<DockPanel>()
-                        .Set(
+                    VNode.Create<Map>()
+                        .Set(p => p.CredentialsProvider, new ApplicationIdCredentialsProvider("AiYVQeyKth-2j8dkcIPe58rz3zxNt6Hw-ydHJhZLfklNfZPrWM9HlBr6LTnIgy65"))
+                        .Set(p => p.Mode, new VNode<MapMode>(() => new AerialMode()))
+                        .Set(p => p.Center, new Location(center.Latitude, center.Longitude))
+                        .Set(p => p.ZoomLevel, 15)
+                        .Set(p => p.Height, 500)
+                        .Set(p => p.Culture, "de-AT")
+                        .SetChildren(
                             p => p.Children,
-                            VNode.Create<Button>()
-                                .Attach(DockPanel.DockProperty, Dock.Right)
-                                .Set(p => p.Content, "+")
-                                .Set(p => p.IsEnabled, !string.IsNullOrWhiteSpace(state.NewItem.Title) && !state.IsSaving)
-                                .OnEvent(p => p.ClickObservable(), _ => dispatch(new Message.AddTodo())),
-                            VNode.Create<TextBox>()
-                                .Attach(DockPanel.DockProperty, Dock.Right)
-                                .Set(p => p.Text, state.NewItem.DueTime.ToString(CultureInfo.CurrentUICulture))
-                                .OnEvent(p => p.TextChangedObservable().Select(e => ((TextBox)e.Sender).Text), p => dispatch(new Message.SetNewTodoDueDate(p))),
-                            VNode.Create<TextBox>()
-                                .Attach(TextBoxHelper.WatermarkProperty, "What do you want to do?")
-                                .Set(p => p.Text, state.NewItem.Title)
-                                .OnEvent(p => p.TextChangedObservable().Select(e => ((TextBox)e.Sender).Text), p => dispatch(new Message.SetNewTodoTitle(p)))),
-                    VNode.Create<ItemsControl>()
-                        .Set(
-                            p => p.Items,
-                            state.TodoItems
-                                .Select(todoItem =>
+                            state.Areas
+                                .SelectMany(area =>
                                 {
-                                    return VNode.Create<StackPanel>()
-                                        .Set(p => p.Orientation, Orientation.Horizontal)
-                                        .Set(
-                                            p => p.Children,
-                                            VNode.Create<TextBlock>().Set(p => p.Text, todoItem.Title),
-                                            VNode.Create<TextBlock>().Set(p => p.Text, todoItem.DueTime.ToString(CultureInfo.CurrentUICulture)),
-                                            VNode.Create<CheckBox>()
-                                                .Set(p => p.IsChecked, todoItem.Done)
-                                                .OnEvent(p => p.CheckedObservable(), _ => dispatch(new Message.ToggleDone(todoItem)))
-                                                .OnEvent(p => p.UncheckedObservable(), _ => dispatch(new Message.ToggleDone(todoItem))));
+                                    IEnumerable<IVNode> GetChildren()
+                                    {
+                                        var locationCollection = new LocationCollection();
+                                        area
+                                            .Coordinates
+                                            .Select(p => new Location(p.Latitude, p.Longitude))
+                                            .ForEach(locationCollection.Add);
+
+                                        yield return VNode.Create<MapPolygon>()
+                                            .Set(p => p.Stroke, new SolidColorBrush(Colors.PaleVioletRed))
+                                            .Set(p => p.StrokeThickness, 3)
+                                            .Set(p => p.StrokeLineJoin, PenLineJoin.Round)
+                                            .Set(p => p.Locations, new LocationCollection())
+                                            .SetChildren(p => p.Locations, area.Coordinates
+                                                .Select(p => new Location(p.Latitude, p.Longitude)))
+                                            .Set(p => p.Opacity, 0.7)
+                                            .Set(p => p.Tag, area);
+
+                                        var areaCenter = GetCenter(new[] { area });
+                                        yield return VNode.Create<Pushpin>()
+                                            .Set(p => p.Location, new Location(areaCenter.Latitude, areaCenter.Longitude))
+                                            .Set(p => p.Content, area.Note.Substring(0, 1))
+                                            .Attach(ToolTipService.ToolTipProperty, area.Note);
+                                    }
+
+                                    return GetChildren();
+                                }))
+                        .OnEvent(
+                            p => p
+                                .MouseDownObservable()
+                                .Select(mouseDownEvent =>
+                                {
+                                    var map = (Map)mouseDownEvent.Sender;
+                                    var mousePosition = mouseDownEvent.EventArgs.GetPosition(map);
+                                    if (!TryGetPolygonLocation(map, mousePosition, out var polygonLocation))
+                                    {
+                                        return Observable.Empty((Area: default(Area), CoordinateIndex: default(int), Coordinate: default(Coordinate)));
+                                    }
+
+                                    var area = (Area)polygonLocation.Polygon.Tag;
+
+                                    return map
+                                        .PreviewMouseMoveObservable()
+                                        .Do(mouseMoveEvent => mouseMoveEvent.EventArgs.Handled = true)
+                                        .Select(mouseMoveEvent =>
+                                        {
+                                            var location = map.ViewportPointToLocation(mouseMoveEvent.EventArgs.GetPosition(map));
+                                            return location;
+                                        })
+                                        .Where(location => location != null)
+                                        .Do(location => polygonLocation.Polygon.Locations[polygonLocation.LocationIndex] = location)
+                                        .TakeUntil(map.MouseUpObservable())
+                                        .LastAsync()
+                                        .Select(location => (
+                                            Area: area,
+                                            CoordinateIndex: polygonLocation.LocationIndex,
+                                            Coordinate: new Coordinate(location.Latitude, location.Longitude)
+                                         ));
+                                })
+                                .Switch(),
+                            move =>
+                            {
+                                dispatch(new Message.MoveLocationMessage(move.Area, move.CoordinateIndex, move.Coordinate));
+                            }),
+                    VNode.Create<DataGrid>()
+                        .Set(p => p.AutoGenerateColumns, false)
+                        .SetChildren(p => p.Columns,
+                            VNode.Create<DataGridTextColumn>()
+                                .Set(p => p.Header, "Title")
+                                .Set(p => p.Binding, new Binding("Title")))
+                        .SetChildren(
+                            p => p.Items,
+                            state.Areas
+                                .Select(area =>
+                                {
+                                    return new { Title = area.Note };
                                 })));
         }
-    }
 
-    public class Cmd<TMessage>
-    {
-        public Cmd(IEnumerable<Sub<TMessage>> subs)
+        private static bool TryGetPolygonLocation(Map map, Point point, out (MapPolygon Polygon, int LocationIndex) polygonLocation)
         {
-            Subs = subs.ToList();
-        }
+            var neighborPoints = map.GetSelfAndDescendants<MapPolygon>()
+                .SelectMany(polygon => polygon
+                    .Locations
+                    .Select((location, index) => new
+                    {
+                        Polygon = polygon,
+                        LocationIndex = index,
+                        Distance = map.LocationToViewportPoint(location).DistanceTo(point)
+                    })
+                )
+                .Where(p => p.Distance < 5) // pixels
+                .ToList();
 
-        public IReadOnlyCollection<Sub<TMessage>> Subs { get; }
-    }
-
-    public static class Cmd
-    {
-        public static Cmd<TMessage> None<TMessage>()
-        {
-            return new Cmd<TMessage>(new Sub<TMessage>[0]);
-        }
-
-        public static Cmd<TMessage> OfSub<TMessage>(Sub<TMessage> sub)
-        {
-            return new Cmd<TMessage>(new[] { sub });
-        }
-
-        public static Cmd<TMessage> OfMsg<TMessage>(TMessage message)
-        {
-            return OfSub<TMessage>(dispatch => dispatch(message));
-        }
-
-        public static Cmd<TMessage> Batch<TMessage>(IEnumerable<Cmd<TMessage>> cmds)
-        {
-            return new Cmd<TMessage>(cmds.SelectMany(p => p.Subs));
-        }
-
-        public static Cmd<TMessage> Batch<TMessage>(params Cmd<TMessage>[] cmds)
-        {
-            return Batch(cmds.AsEnumerable());
-        }
-
-        public static Cmd<TMessage> OfAsync<TResult, TMessage>(
-            Func<Task<TResult>> action,
-            Func<TResult, TMessage> ofSuccess,
-            Func<Exception, TMessage> ofError)
-        {
-            async void Sub(Dispatch<TMessage> dispatch)
+            if (neighborPoints.Count == 0)
             {
-                try
-                {
-                    dispatch(ofSuccess(await action()));
-                }
-                catch (Exception e)
-                {
-                    dispatch(ofError(e));
-                }
+                polygonLocation = default(ValueTuple<MapPolygon, int>);
+                return false;
             }
 
-            return OfSub<TMessage>(Sub);
+            var nearest = neighborPoints.MinBy(p => p.Distance)[0];
+
+            polygonLocation = (neighborPoints[0].Polygon, neighborPoints[0].LocationIndex);
+            return true;
         }
 
-        public static Cmd<TMessage> OfAsync<TMessage>(
-            Func<Task> action,
-            TMessage success,
-            Func<Exception, TMessage> ofError)
+        // see https://stackoverflow.com/a/14231286/1293659
+        private static Coordinate GetCenter(IEnumerable<Area> areas)
         {
-            async void Sub(Dispatch<TMessage> dispatch)
-            {
-                try
+            var (x, y, z, count) = areas
+                .SelectMany(area => area.Coordinates)
+                .Aggregate((x: 0.0, y: 0.0, z: 0.0, count: 0), (center, point) =>
                 {
-                    await action();
-                    dispatch(success);
-                }
-                catch (Exception e)
-                {
-                    dispatch(ofError(e));
-                }
-            }
+                    var latitude = point.Latitude * Math.PI / 180;
+                    var longitude = point.Longitude * Math.PI / 180;
+                    return (
+                        center.x + Math.Cos(latitude) * Math.Cos(longitude),
+                        center.y + Math.Cos(latitude) * Math.Sin(longitude),
+                        center.z + Math.Sin(latitude),
+                        center.count + 1
+                    );
+                });
 
-            return OfSub<TMessage>(Sub);
+            var avgX = x / count;
+            var avgY = y / count;
+            var avgZ = z / count;
+
+            var centralLongitude = Math.Atan2(avgY, avgX);
+            var centralSquareRoot = Math.Sqrt(avgX * avgX + avgY * avgY);
+            var centralLatitude = Math.Atan2(avgZ, centralSquareRoot);
+
+            return new Coordinate(centralLatitude * 180 / Math.PI, centralLongitude * 180 / Math.PI);
         }
     }
-
-    public delegate void Dispatch<in TMessage>(TMessage message);
-
-    public delegate void Sub<out TMessage>(Dispatch<TMessage> dispatch);
 }

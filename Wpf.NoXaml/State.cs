@@ -7,36 +7,41 @@ namespace Wpf.NoXaml
     public class State
     {
         public static readonly State Empty =
-            new State(default(DateTime), TodoItem.Empty, new TodoItem[0], false);
+            new State(new Area[0], Area.Empty);
 
-        public DateTime CurrentTime { get; }
-        public TodoItem NewItem { get; }
-        public ImmutableList<TodoItem> TodoItems { get; }
-        public bool IsSaving { get; }
-
-        public State(DateTime currentTime, TodoItem newItem, IEnumerable<TodoItem> todoItems, bool isSaving)
+        public State(IEnumerable<Area> areas, Area newArea)
         {
-            CurrentTime = currentTime;
-            NewItem = newItem;
-            TodoItems = todoItems.ToImmutableList();
-            IsSaving = isSaving;
+            Areas = areas?.ToImmutableList() ?? throw new ArgumentNullException(nameof(areas));
+            NewArea = newArea ?? throw new ArgumentNullException(nameof(newArea));
         }
+
+        public ImmutableList<Area> Areas { get; }
+        public Area NewArea { get; }
     }
 
-    public class TodoItem
+    public class Area
     {
-        public static readonly TodoItem Empty =
-            new TodoItem(string.Empty, default(DateTime), default(bool));
+        public static readonly Area Empty = new Area(new Coordinate[0], "");
 
-        public string Title { get; }
-        public DateTime DueTime { get; }
-        public bool Done { get; }
-
-        public TodoItem(string title, DateTime dueTime, bool done)
+        public Area(IEnumerable<Coordinate> coordinates, string note)
         {
-            Title = title;
-            DueTime = dueTime;
-            Done = done;
+            Coordinates = coordinates?.ToImmutableList() ?? throw new ArgumentNullException(nameof(coordinates));
+            Note = note ?? throw new ArgumentNullException(nameof(note));
         }
+
+        public ImmutableList<Coordinate> Coordinates { get; }
+        public string Note { get; }
+    }
+
+    public class Coordinate
+    {
+        public Coordinate(double latitude, double longitude)
+        {
+            Latitude = latitude;
+            Longitude = longitude;
+        }
+
+        public double Latitude { get; }
+        public double Longitude { get; }
     }
 }

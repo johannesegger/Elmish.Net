@@ -24,6 +24,7 @@ namespace Wpf.NoXaml.Utils
             return newExpression.Compile();
         }
 
+        // TODO create nice exception when name of ctor parameter doesn't match property name
         public static Func<T, TProp, T> CreateImmutableSetter<T, TProp>(this Expression<Func<T, TProp>> propertyExpression)
         {
             var objectParameter = propertyExpression.Parameters.Single();
@@ -33,7 +34,7 @@ namespace Wpf.NoXaml.Utils
             {
                 if (p.expr.NodeType == ExpressionType.MemberAccess)
                 {
-                    var expr = (MemberExpression) p.expr;
+                    var expr = (MemberExpression)p.expr;
                     var parent = expr.Expression;
 
                     var ctor = parent.Type.GetConstructors().Single(c => c.IsPublic && !c.IsStatic);
@@ -50,12 +51,11 @@ namespace Wpf.NoXaml.Utils
                     p = new
                     {
                         expr = parent,
-                        value = (Expression) Expression.New(ctor, arguments)
+                        value = (Expression)Expression.New(ctor, arguments)
                     };
                 }
-                else if (p.expr.NodeType == ExpressionType.Index)
+                else if (TryConvertToIndexExpession(p.expr, out IndexExpression expr))
                 {
-                    var expr = (IndexExpression) p.expr;
                     var parent = expr.Object;
 
                     var isImmutableList = parent.Type
@@ -80,7 +80,7 @@ namespace Wpf.NoXaml.Utils
                     p = new
                     {
                         expr = parent,
-                        value = (Expression) setItemExpression
+                        value = (Expression)setItemExpression
                     };
                 }
                 else
@@ -92,6 +92,30 @@ namespace Wpf.NoXaml.Utils
             return Expression
                 .Lambda<Func<T, TProp, T>>(p.value, propertyExpression.Parameters.Single(), valueParameter)
                 .Compile();
+        }
+
+        private static bool TryConvertToIndexExpession(Expression expr, out IndexExpression result)
+        {
+            if (expr.NodeType == ExpressionType.Index)
+            {
+                result = (IndexExpression)expr;
+                return true;
+            }
+
+            if (expr.NodeType == ExpressionType.Call)
+            {
+                var callExpr = (MethodCallExpression)expr;
+                var indexProperty = callExpr.Method.DeclaringType.GetProperties()
+                    .FirstOrDefault(p => p.GetMethod == callExpr.Method);
+                if (indexProperty != null)
+                {
+                    result = Expression.MakeIndex(callExpr.Object, indexProperty, callExpr.Arguments);
+                    return true;
+                }
+            }
+
+            result = null;
+            return false;
         }
 
         public static T Set<T, TProp>(this T root, Expression<Func<T, TProp>> expr, TProp value)
