@@ -7,14 +7,18 @@ namespace Wpf.NoXaml
     public class State
     {
         public static readonly State Empty =
-            new State(new Area[0], Area.Empty);
+            new State(0, new Coordinate(0, 0), new Area[0], Area.Empty);
 
-        public State(IEnumerable<Area> areas, Area newArea)
+        public State(double mapZoomLevel, Coordinate center, IEnumerable<Area> areas, Area newArea)
         {
+            MapZoomLevel = mapZoomLevel;
+            Center = center;
             Areas = areas?.ToImmutableList() ?? throw new ArgumentNullException(nameof(areas));
             NewArea = newArea ?? throw new ArgumentNullException(nameof(newArea));
         }
 
+        public double MapZoomLevel { get; }
+        public Coordinate Center { get; }
         public ImmutableList<Area> Areas { get; }
         public Area NewArea { get; }
     }

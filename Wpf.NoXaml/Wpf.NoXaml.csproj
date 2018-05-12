@@ -5,6 +5,7 @@
   </PropertyGroup>
   
   <ItemGroup>
+    <PackageReference Include="LanguageExt.Core" Version="3.0.1" />
     <PackageReference Include="MahApps.Metro" Version="1.6.2" />
     <PackageReference Include="Microsoft.Maps.MapControl.WPF" Version="1.0.1" />
     <PackageReference Include="Newtonsoft.Json" Version="11.0.2" />

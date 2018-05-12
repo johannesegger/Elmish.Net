@@ -16,6 +16,7 @@ using Newtonsoft.Json;
 using Wpf.NoXaml.Utils;
 using System.Windows.Data;
 using Microsoft.Maps.MapControl.WPF.Overlays;
+using Microsoft.Maps.MapControl.WPF.Core;
 
 namespace Wpf.NoXaml
 {
@@ -59,14 +60,16 @@ namespace Wpf.NoXaml
             //    .Subscribe(currentTimeLens.Set);
 
             // From DB
+            var areas =
+                ImmutableList<Area>
+                    .Empty
+                    .Add(new Area(new [] { new Coordinate(47.946812, 13.777095), new Coordinate(47.944375, 13.777380), new Coordinate(47.944338, 13.776286), new Coordinate(47.946508, 13.776049), new Coordinate(47.946485, 13.776685) }, "Enser"))
+                    .Add(new Area(new [] { new Coordinate(47.946927, 13.777057), new Coordinate(47.947813, 13.776992), new Coordinate(47.948885, 13.780077), new Coordinate(47.948237, 13.780352) }, "Galler"));
             var initialState = State
                 .Empty
-                .Set(
-                    p => p.Areas,
-                    ImmutableList<Area>
-                        .Empty
-                        .Add(new Area(new [] { new Coordinate(47.946812, 13.777095), new Coordinate(47.944375, 13.777380), new Coordinate(47.944338, 13.776286), new Coordinate(47.946508, 13.776049), new Coordinate(47.946485, 13.776685) }, "Enser"))
-                        .Add(new Area(new [] { new Coordinate(47.946927, 13.777057), new Coordinate(47.947813, 13.776992), new Coordinate(47.948885, 13.780077), new Coordinate(47.948237, 13.780352) }, "Galler")));
+                .Set(p => p.Areas, areas)
+                .Set(p => p.MapZoomLevel, 15)
+                .Set(p => p.Center, GetCenter(areas));
 
             Title = "Hello, XAML-free WPF";
 
@@ -78,7 +81,7 @@ namespace Wpf.NoXaml
             messageSubject
                 .Scan(initialUpdateResult, (updateResult, message) => Update(updateResult.State, message))
                 .StartWith(initialUpdateResult)
-                .Do(updateResult => Debug.WriteLine(JsonConvert.SerializeObject(updateResult.State)))
+                .Do(updateResult => Console.WriteLine(JsonConvert.SerializeObject(updateResult.State)))
                 .Select(updateResult =>
                 {
                     var result = View(updateResult.State, dispatch);
@@ -87,7 +90,7 @@ namespace Wpf.NoXaml
                 .ObserveOnDispatcher()
                 .Subscribe(p =>
                 {
-                    Content = p.View.Materialize();
+                    Content = p.View.Materialize(Content);
                     p.Cmd.Subs.ForEach(sub => sub(dispatch));
                 });
         }
@@ -108,21 +111,33 @@ namespace Wpf.NoXaml
                     }
                     var newState = state.Set(p => p.Areas, state.Areas.Select(Update));
                     return (newState, Cmd.None<Message>());
+                },
+                (Message.ChangeMapViewMessage m) =>
+                {
+                    var newState = state
+                        .Set(p => p.MapZoomLevel, m.ZoomLevel)
+                        .Set(p => p.Center, m.Center);
+                    return (newState, Cmd.None<Message>());
                 });
         }
 
         private static IVNode View(State state, Dispatch<Message> dispatch)
         {
-            var center = GetCenter(state.Areas);
-
             return VNode.Create<StackPanel>()
                 .SetChildren(
                     p => p.Children,
                     VNode.Create<Map>()
-                        .Set(p => p.CredentialsProvider, new ApplicationIdCredentialsProvider("AiYVQeyKth-2j8dkcIPe58rz3zxNt6Hw-ydHJhZLfklNfZPrWM9HlBr6LTnIgy65"))
-                        .Set(p => p.Mode, new VNode<MapMode>(() => new AerialMode()))
-                        .Set(p => p.Center, new Location(center.Latitude, center.Longitude))
-                        .Set(p => p.ZoomLevel, 15)
+                        .Set(
+                            p => p.CredentialsProvider,
+                            new ApplicationIdCredentialsProvider("AiYVQeyKth-2j8dkcIPe58rz3zxNt6Hw-ydHJhZLfklNfZPrWM9HlBr6LTnIgy65"),
+                            EqualityComparer.Create((CredentialsProvider p) => ((ApplicationIdCredentialsProvider)p).ApplicationId))
+                        .Set(p => p.Mode, VNode.Create<MapMode, AerialMode>())
+                        .Set(
+                            p => p.Center,
+                            new Location(state.Center.Latitude, state.Center.Longitude),
+                            EqualityComparer.Create((Location p) => new { p.Latitude, p.Longitude })
+                        )
+                        .Set(p => p.ZoomLevel, state.MapZoomLevel)
                         .Set(p => p.Height, 500)
                         .Set(p => p.Culture, "de-AT")
                         .SetChildren(
@@ -193,7 +208,17 @@ namespace Wpf.NoXaml
                             move =>
                             {
                                 dispatch(new Message.MoveLocationMessage(move.Area, move.CoordinateIndex, move.Coordinate));
-                            }),
+                            }
+                        )
+                        .OnEvent(p =>
+                            Observable
+                                .FromEventPattern<MapEventArgs>(
+                                    h => p.ViewChangeEnd += h,
+                                    h => p.ViewChangeEnd -= h
+                                )
+                                .Select(e => new Message.ChangeMapViewMessage(p.ZoomLevel, new Coordinate(p.Center.Latitude, p.Center.Longitude))),
+                            m => dispatch(m)
+                        ),
                     VNode.Create<DataGrid>()
                         .Set(p => p.AutoGenerateColumns, false)
                         .SetChildren(p => p.Columns,
