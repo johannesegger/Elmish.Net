@@ -1,8 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Reactive.Disposables;
 
-namespace Wpf.NoXaml.Utils
+namespace Wpf.Elmish
 {
     public interface IResourceDisposable : IDisposable
     {
@@ -34,31 +35,21 @@ namespace Wpf.NoXaml.Utils
         }
     }
 
-    public static class ResourceDisposable
+    internal static class ResourceDisposable
     {
-        public static IResourceDisposable<T> Create<T>(T resource, IDisposable disposable)
-        {
-            return new ResourceDisposable<T>(resource, disposable);
-        }
-
-        public static IResourceDisposable<T> Create<T>(T resource, IEnumerable<IDisposable> disposables)
-        {
-            return new ResourceDisposable<T>(resource, new CompositeDisposable(disposables));
-        }
-
         public static IResourceDisposable<T> Create<T>(T resource, params IDisposable[] disposables)
         {
             return new ResourceDisposable<T>(resource, new CompositeDisposable(disposables));
         }
+
+        public static IResourceDisposable<T> Create<T>(T resource, IEnumerable<IDisposable> disposables)
+        {
+            return Create(resource, disposables.ToArray());
+        }
     }
 
-    public static class ResourceDisposableExtensions
+    internal static class ResourceDisposableExtensions
     {
-        public static IResourceDisposable AddDisposable(this IResourceDisposable o, IDisposable d)
-        {
-            return new ResourceDisposable<object>(o.Resource, new CompositeDisposable(o, d));
-        }
-
         public static IResourceDisposable<T> AddDisposable<T>(this IResourceDisposable<T> o, IDisposable d)
         {
             return new ResourceDisposable<T>(o.Resource, new CompositeDisposable(o, d));

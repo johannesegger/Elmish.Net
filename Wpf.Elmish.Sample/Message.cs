@@ -1,6 +1,6 @@
 ﻿using OneOf;
 
-namespace Wpf.NoXaml
+namespace Wpf.Elmish
 {
     public abstract class Message : OneOfBase<
         Message.MoveLocationMessage,

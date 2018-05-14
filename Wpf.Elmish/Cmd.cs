@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 
-namespace Wpf.NoXaml.Utils
+namespace Wpf.Elmish
 {
     public delegate void Dispatch<in TMessage>(TMessage message);
 

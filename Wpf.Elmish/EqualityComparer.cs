@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace Wpf.NoXaml
+namespace Wpf.Elmish
 {
     public static class EqualityComparer
     {

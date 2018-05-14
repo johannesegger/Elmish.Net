@@ -1,9 +1,9 @@
 using LanguageExt;
 using static LanguageExt.Prelude;
 
-namespace Wpf.NoXaml.Utils
+namespace Wpf.Elmish.Utils
 {
-    public static class OptionExtensions
+    internal static class OptionExtensions
     {
         public static Option<T> OfType<T>(this Option<object> o)
         {

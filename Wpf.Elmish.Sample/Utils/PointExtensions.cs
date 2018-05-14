@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Windows;
 
-namespace Wpf.NoXaml.Utils
+namespace Wpf.Elmish.Sample.Utils
 {
     public static class PointExtensions
     {

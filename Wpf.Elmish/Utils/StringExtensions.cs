@@ -1,6 +1,6 @@
-﻿namespace Wpf.NoXaml.Utils
+﻿namespace Wpf.Elmish.Utils
 {
-    public static class StringExtensions
+    internal static class StringExtensions
     {
         public static string FirstToUpper(this string text)
         {

@@ -1,6 +1,6 @@
 ﻿using System.Windows;
 
-namespace Wpf.NoXaml.Utils
+namespace Wpf.Elmish
 {
     public static class AttachedPropertyExtensions
     {

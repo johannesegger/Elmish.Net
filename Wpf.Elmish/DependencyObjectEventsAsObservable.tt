@@ -11,7 +11,7 @@
 <#@ output extension=".cs" #>
 using System.Reactive.Linq;
 
-namespace Wpf.NoXaml.Utils
+namespace Wpf.NoXaml
 {
 <#
 var types = new[] { typeof(UIElement).Assembly, typeof(FrameworkElement).Assembly }

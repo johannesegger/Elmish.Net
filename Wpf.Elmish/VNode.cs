@@ -6,9 +6,10 @@ using System.Linq.Expressions;
 using System.Reactive.Disposables;
 using System.Windows;
 using LanguageExt;
+using Wpf.Elmish.Utils;
 using static LanguageExt.Prelude;
 
-namespace Wpf.NoXaml.Utils
+namespace Wpf.Elmish
 {
     public interface IVNode
     {
@@ -119,8 +120,10 @@ namespace Wpf.NoXaml.Utils
                 {
                     var oldItem = oldCollection.Count > i ? Some(oldCollection[i]) : None;
 
-                    var newItem = children[i].Materialize(oldItem);
-                    materializedChildren.Add(newItem);
+                    var newItem = children[i]
+                        .Materialize(oldItem)
+                        .DisposeWith(materializedChildren)
+                        .Resource;
 
                     if (ReferenceEquals(oldCollection, newCollection))
                     {
@@ -128,16 +131,16 @@ namespace Wpf.NoXaml.Utils
                             .Match(
                                 p =>
                                 {
-                                    if (!ReferenceEquals(p, newItem.Resource))
+                                    if (!ReferenceEquals(p, newItem))
                                     {
-                                        newCollection[i] = newItem.Resource;
+                                        newCollection[i] = newItem;
                                     }
                                 },
-                                () => newCollection.Add(newItem.Resource));
+                                () => newCollection.Add(newItem));
                     }
                     else
                     {
-                        newCollection.Add(newItem.Resource);
+                        newCollection.Add(newItem);
                     }
                 }
                 return o.AddDisposable(materializedChildren);

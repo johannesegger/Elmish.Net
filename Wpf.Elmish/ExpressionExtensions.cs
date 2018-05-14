@@ -3,25 +3,42 @@ using System.Collections.Immutable;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
+using Wpf.Elmish.Utils;
 using Expression = System.Linq.Expressions.Expression;
 
-namespace Wpf.NoXaml.Utils
+namespace Wpf.Elmish
 {
     public static class ExpressionExtensions
     {
-        public static Action<TObj, TProp> CreateSetter<TObj, TProp>(
-            this Expression<Func<TObj, TProp>> getter)
+        private static TSetLambda CreateSetter<TGetLambda, TSetLambda>(
+            this Expression<TGetLambda> getter,
+            params Type[] propertyTypes)
         {
             var memberExpression = (MemberExpression)getter.Body;
             var property = (PropertyInfo)memberExpression.Member;
             var setMethod = property.GetSetMethod();
 
-            var parameterValue = Expression.Parameter(typeof(TProp), "value");
+            var parameterValues = propertyTypes
+                .Select(Expression.Parameter)
+                .ToArray();
 
-            var newExpression = Expression.Lambda<Action<TObj, TProp>>(
-                Expression.Call(memberExpression.Expression, setMethod, parameterValue),
-                getter.Parameters.Concat(new[] { parameterValue }));
+            var newExpression = Expression.Lambda<TSetLambda>(
+                Expression.Call(memberExpression.Expression, setMethod, parameterValues),
+                getter.Parameters.Concat(parameterValues)
+            );
             return newExpression.Compile();
+        }
+
+        public static Action<TProp> CreateSetter<TProp>(
+            this Expression<Func<TProp>> getter)
+        {
+            return getter.CreateSetter<Func<TProp>, Action<TProp>>(typeof(TProp));
+        }
+
+        public static Action<TObj, TProp> CreateSetter<TObj, TProp>(
+            this Expression<Func<TObj, TProp>> getter)
+        {
+            return getter.CreateSetter<Func<TObj, TProp>, Action<TObj, TProp>>(typeof(TProp));
         }
 
         // TODO create nice exception when name of ctor parameter doesn't match property name

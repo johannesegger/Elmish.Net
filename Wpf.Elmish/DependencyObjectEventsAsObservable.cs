@@ -1,6 +1,6 @@
 ﻿using System.Reactive.Linq;
 
-namespace Wpf.NoXaml.Utils
+namespace Wpf.Elmish
 {
     public static class ContentElementExtensions
     {

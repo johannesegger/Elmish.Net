@@ -1,25 +1,21 @@
-﻿using LanguageExt;
-using MahApps.Metro.Controls;
-using Microsoft.Maps.MapControl.WPF;
-using Microsoft.Maps.MapControl.WPF.Core;
-using Newtonsoft.Json;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
-using System.Diagnostics;
 using System.Linq;
-using System.Reactive.Disposables;
 using System.Reactive.Linq;
-using System.Reactive.Subjects;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
 using System.Windows.Media;
-using Wpf.NoXaml.Utils;
+using LanguageExt;
+using MahApps.Metro.Controls;
+using Microsoft.Maps.MapControl.WPF;
+using Microsoft.Maps.MapControl.WPF.Core;
+using Wpf.Elmish.Sample.Utils;
 using static LanguageExt.Prelude;
 using WpfMap = Microsoft.Maps.MapControl.WPF.Map;
 
-namespace Wpf.NoXaml
+namespace Wpf.Elmish.Sample
 {
     internal class Program
     {
@@ -49,58 +45,27 @@ namespace Wpf.NoXaml
     {
         public MainWindow()
         {
-            //modelSubject
-            //    .Subscribe(model => Debug.WriteLine(JsonConvert.SerializeObject(model)));
+            Title = "Hello, XAML-free WPF";
 
-            //var currentTimeLens = rootLens.Focus(model => model.CurrentTime);
-            //Observable
-            //    .Interval(TimeSpan.FromMilliseconds(1))
-            //    .Select(_ => DateTime.Now)
-            //    .Take(TimeSpan.FromSeconds(10))
-            //    .ObserveOnDispatcher()
-            //    .Subscribe(currentTimeLens.Set);
+            ElmishApp.Run(Init, Update, View, () => Content);
+        }
 
-            // From DB
+        private static (State, Cmd<Message>) Init()
+        {
             var areas =
                 ImmutableList<Area>
                     .Empty
-                    .Add(new Area(new [] { new Coordinate(47.946812, 13.777095), new Coordinate(47.944375, 13.777380), new Coordinate(47.944338, 13.776286), new Coordinate(47.946508, 13.776049), new Coordinate(47.946485, 13.776685) }, "Enser"))
-                    .Add(new Area(new [] { new Coordinate(47.946927, 13.777057), new Coordinate(47.947813, 13.776992), new Coordinate(47.948885, 13.780077), new Coordinate(47.948237, 13.780352) }, "Galler"));
+                    .Add(new Area(new[] { new Coordinate(47.946812, 13.777095), new Coordinate(47.944375, 13.777380), new Coordinate(47.944338, 13.776286), new Coordinate(47.946508, 13.776049), new Coordinate(47.946485, 13.776685) }, "Enser"))
+                    .Add(new Area(new[] { new Coordinate(47.946927, 13.777057), new Coordinate(47.947813, 13.776992), new Coordinate(47.948885, 13.780077), new Coordinate(47.948237, 13.780352) }, "Galler"));
             var initialState = State
                 .Empty
                 .Set(p => p.Areas, areas)
                 .Set(p => p.MapZoomLevel, 15)
                 .Set(p => p.Center, GetCenter(areas));
-
-            Title = "Hello, XAML-free WPF";
-
-            var messageSubject = new Subject<Message>();
-            Dispatch<Message> dispatch = messageSubject.OnNext;
-
-            var initialUpdateResult = (State: initialState, Cmd: Cmd.None<Message>());
-
-            var viewSubscriptionsDisposable = new SerialDisposable();
-            messageSubject
-                .Scan(initialUpdateResult, (updateResult, message) => Update(updateResult.State, message))
-                .StartWith(initialUpdateResult)
-                .Do(updateResult => Debug.WriteLine(JsonConvert.SerializeObject(updateResult.State)))
-                .Select(updateResult =>
-                {
-                    var result = View(updateResult.State, dispatch);
-                    return (View: result, Cmd: updateResult.Cmd);
-                })
-                .ObserveOnDispatcher()
-                .Subscribe(p =>
-                {
-                    var view = p.View.Materialize(Content);
-                    viewSubscriptionsDisposable.Disposable = view;
-                    Content = view.Resource;
-
-                    p.Cmd.Subs.ForEach(sub => sub(dispatch));
-                });
+            return (initialState, Cmd.None<Message>());
         }
 
-        private static (State, Cmd<Message>) Update(State state, Message message)
+        private static (State, Cmd<Message>) Update(Message message, State state)
         {
             return message.Match(
                 (Message.MoveLocationMessage m) =>
@@ -173,7 +138,7 @@ namespace Wpf.NoXaml
                                                     .MouseDownObservable()
                                                     .Select(mouseDownEvent =>
                                                     {
-                                                        var map = p.FindParent<WpfMap>();
+                                                        var map = p.TryFindParent<WpfMap>();
                                                         var mousePosition = mouseDownEvent.EventArgs.GetPosition(map);
                                                         return TryGetPolygonLocation(p, mousePosition)
                                                             .Some(locationIndex =>
@@ -237,7 +202,7 @@ namespace Wpf.NoXaml
 
         private static Option<int> TryGetPolygonLocation(MapPolygon polygon, Point point)
         {
-            var map = polygon.FindParent<WpfMap>();
+            var map = polygon.TryFindParent<WpfMap>();
             var nearest = polygon
                 .Locations
                 .Select((location, index) =>

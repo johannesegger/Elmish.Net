@@ -4,10 +4,9 @@ using System.Collections.Immutable;
 using System.Linq;
 using System.Linq.Expressions;
 using FluentAssertions;
-using Wpf.NoXaml.Utils;
 using Xunit;
 
-namespace Wpf.NoXaml.Test
+namespace Wpf.Elmish.Test
 {
     public class ImmutableSetterTest
     {

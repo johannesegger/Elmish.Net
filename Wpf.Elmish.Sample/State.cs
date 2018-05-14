@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 
-namespace Wpf.NoXaml
+namespace Wpf.Elmish
 {
     public class State
     {
