@@ -1,2 +1,2 @@
-# ModernWPF
-Looking for alternatives to structure WPF applications
+# Wpf.Elmish
+Elm architecture for WPF apps. 100% less XAML.
