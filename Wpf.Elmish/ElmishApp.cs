@@ -10,7 +10,7 @@ namespace Wpf.Elmish
     public static class ElmishApp
     {
         public static void Run<TState, TMessage>(
-            Func<(TState State, Cmd<TMessage> Cmd)> init,
+            (TState State, Cmd<TMessage> Cmd) init,
             Func<TMessage, TState, (TState, Cmd<TMessage>)> update,
             Func<TState, Dispatch<TMessage>, IVNode> view,
             Expression<Func<object>> rootNode)
@@ -18,15 +18,13 @@ namespace Wpf.Elmish
             var messageSubject = new Subject<TMessage>();
             Dispatch<TMessage> dispatch = messageSubject.OnNext;
 
-            var initialUpdateResult = init();
-
             var getter = rootNode.Compile();
             var setter = rootNode.CreateSetter();
 
             var viewSubscriptionsDisposable = new SerialDisposable();
             messageSubject
-                .Scan(initialUpdateResult, (updateResult, message) => update(message, updateResult.State))
-                .StartWith(initialUpdateResult)
+                .Scan(init, (updateResult, message) => update(message, updateResult.State))
+                .StartWith(init)
                 .Select(updateResult =>
                 {
                     var result = view(updateResult.State, dispatch);

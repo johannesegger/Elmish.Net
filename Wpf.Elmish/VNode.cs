@@ -188,15 +188,14 @@ namespace Wpf.Elmish
             return node.SetChildren(propertyExpression, children.ToArray());
         }
 
-        public static IVNode<T> OnEvent<T, TProp>(
+        public static IVNode<T> Subscribe<T>(
             this IVNode<T> vNode,
-            Func<T, IObservable<TProp>> getter,
-            Action<TProp> dispatchMessage)
+            Func<T, IDisposable> fn)
         {
             return new VNode<T>(node =>
             {
                 var o = vNode.Materialize(node);
-                var subscription = getter(o.Resource).Subscribe(dispatchMessage);
+                var subscription = fn(o.Resource);
                 return o.AddDisposable(subscription);
             });
         }

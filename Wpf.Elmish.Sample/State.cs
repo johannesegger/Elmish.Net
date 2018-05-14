@@ -25,15 +25,15 @@ namespace Wpf.Elmish
 
     public class Area
     {
-        public static readonly Area Empty = new Area(new Coordinate[0], "");
+        public static readonly Area Empty = new Area(new DraggableCoordinate[0], "");
 
-        public Area(IEnumerable<Coordinate> coordinates, string note)
+        public Area(IEnumerable<DraggableCoordinate> coordinates, string note)
         {
             Coordinates = coordinates?.ToImmutableList() ?? throw new ArgumentNullException(nameof(coordinates));
             Note = note ?? throw new ArgumentNullException(nameof(note));
         }
 
-        public ImmutableList<Coordinate> Coordinates { get; }
+        public ImmutableList<DraggableCoordinate> Coordinates { get; }
         public string Note { get; }
     }
 
@@ -47,5 +47,22 @@ namespace Wpf.Elmish
 
         public double Latitude { get; }
         public double Longitude { get; }
+    }
+
+    public class DraggableCoordinate
+    {
+        public DraggableCoordinate(Coordinate coordinate, bool isDragging)
+        {
+            Coordinate = coordinate;
+            IsDragging = isDragging;
+        }
+
+        public static DraggableCoordinate Create(double latitude, double longitude)
+        {
+            return new DraggableCoordinate(new Coordinate(latitude, longitude), isDragging: false);
+        }
+
+        public Coordinate Coordinate { get; }
+        public bool IsDragging { get; }
     }
 }

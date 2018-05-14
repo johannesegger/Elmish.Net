@@ -3,21 +3,47 @@
 namespace Wpf.Elmish
 {
     public abstract class Message : OneOfBase<
+        Message.BeginMoveLocationMessage,
         Message.MoveLocationMessage,
+        Message.EndMoveLocationMessage,
         Message.ChangeMapViewMessage>
     {
         public class MoveLocationMessage : Message
         {
-            public MoveLocationMessage(Area area, int coordinateIndex, Coordinate coordinate)
+            public MoveLocationMessage(int areaIndex, int coordinateIndex, Coordinate coordinate)
             {
-                Area = area;
+                AreaIndex = areaIndex;
                 CoordinateIndex = coordinateIndex;
                 Coordinate = coordinate;
             }
 
-            public Area Area { get; }
+            public int AreaIndex { get; }
             public int CoordinateIndex { get; }
             public Coordinate Coordinate { get; }
+        }
+
+        public class BeginMoveLocationMessage : Message
+        {
+            public BeginMoveLocationMessage(int areaIndex, int coordinateIndex)
+            {
+                AreaIndex = areaIndex;
+                CoordinateIndex = coordinateIndex;
+            }
+
+            public int AreaIndex { get; }
+            public int CoordinateIndex { get; }
+        }
+
+        public class EndMoveLocationMessage : Message
+        {
+            public EndMoveLocationMessage(int areaIndex, int coordinateIndex)
+            {
+                AreaIndex = areaIndex;
+                CoordinateIndex = coordinateIndex;
+            }
+
+            public int AreaIndex { get; }
+            public int CoordinateIndex { get; }
         }
 
         public class ChangeMapViewMessage : Message
