@@ -1,22 +1,23 @@
-﻿using System;
+﻿using LanguageExt;
+using MahApps.Metro.Controls;
+using Microsoft.Maps.MapControl.WPF;
+using Microsoft.Maps.MapControl.WPF.Core;
+using Newtonsoft.Json;
+using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Diagnostics;
-using System.Globalization;
 using System.Linq;
+using System.Reactive.Disposables;
 using System.Reactive.Linq;
 using System.Reactive.Subjects;
-using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Media;
-using MahApps.Metro.Controls;
-using Microsoft.Maps.MapControl.WPF;
-using Newtonsoft.Json;
-using Wpf.NoXaml.Utils;
 using System.Windows.Data;
-using Microsoft.Maps.MapControl.WPF.Overlays;
-using Microsoft.Maps.MapControl.WPF.Core;
+using System.Windows.Media;
+using Wpf.NoXaml.Utils;
+using static LanguageExt.Prelude;
+using WpfMap = Microsoft.Maps.MapControl.WPF.Map;
 
 namespace Wpf.NoXaml
 {
@@ -78,10 +79,11 @@ namespace Wpf.NoXaml
 
             var initialUpdateResult = (State: initialState, Cmd: Cmd.None<Message>());
 
+            var viewSubscriptionsDisposable = new SerialDisposable();
             messageSubject
                 .Scan(initialUpdateResult, (updateResult, message) => Update(updateResult.State, message))
                 .StartWith(initialUpdateResult)
-                .Do(updateResult => Console.WriteLine(JsonConvert.SerializeObject(updateResult.State)))
+                .Do(updateResult => Debug.WriteLine(JsonConvert.SerializeObject(updateResult.State)))
                 .Select(updateResult =>
                 {
                     var result = View(updateResult.State, dispatch);
@@ -90,7 +92,10 @@ namespace Wpf.NoXaml
                 .ObserveOnDispatcher()
                 .Subscribe(p =>
                 {
-                    Content = p.View.Materialize(Content);
+                    var view = p.View.Materialize(Content);
+                    viewSubscriptionsDisposable.Disposable = view;
+                    Content = view.Resource;
+
                     p.Cmd.Subs.ForEach(sub => sub(dispatch));
                 });
         }
@@ -126,7 +131,7 @@ namespace Wpf.NoXaml
             return VNode.Create<StackPanel>()
                 .SetChildren(
                     p => p.Children,
-                    VNode.Create<Map>()
+                    VNode.Create<WpfMap>()
                         .Set(
                             p => p.CredentialsProvider,
                             new ApplicationIdCredentialsProvider("AiYVQeyKth-2j8dkcIPe58rz3zxNt6Hw-ydHJhZLfklNfZPrWM9HlBr6LTnIgy65"),
@@ -145,15 +150,17 @@ namespace Wpf.NoXaml
                             state.Areas
                                 .SelectMany(area =>
                                 {
-                                    IEnumerable<IVNode> GetChildren()
-                                    {
-                                        var locationCollection = new LocationCollection();
-                                        area
-                                            .Coordinates
-                                            .Select(p => new Location(p.Latitude, p.Longitude))
-                                            .ForEach(locationCollection.Add);
+                                    var locationCollection = new LocationCollection();
+                                    area
+                                        .Coordinates
+                                        .Select(p => new Location(p.Latitude, p.Longitude))
+                                        .ForEach(locationCollection.Add);
 
-                                        yield return VNode.Create<MapPolygon>()
+                                    var areaCenter = GetCenter(new[] { area });
+
+                                    return new IVNode[]
+                                    {
+                                        VNode.Create<MapPolygon>()
                                             .Set(p => p.Stroke, new SolidColorBrush(Colors.PaleVioletRed))
                                             .Set(p => p.StrokeThickness, 3)
                                             .Set(p => p.StrokeLineJoin, PenLineJoin.Round)
@@ -161,55 +168,49 @@ namespace Wpf.NoXaml
                                             .SetChildren(p => p.Locations, area.Coordinates
                                                 .Select(p => new Location(p.Latitude, p.Longitude)))
                                             .Set(p => p.Opacity, 0.7)
-                                            .Set(p => p.Tag, area);
+                                            .OnEvent(
+                                                p => p
+                                                    .MouseDownObservable()
+                                                    .Select(mouseDownEvent =>
+                                                    {
+                                                        var map = p.FindParent<WpfMap>();
+                                                        var mousePosition = mouseDownEvent.EventArgs.GetPosition(map);
+                                                        return TryGetPolygonLocation(p, mousePosition)
+                                                            .Some(locationIndex =>
+                                                            {
+                                                                return map
+                                                                    .PreviewMouseMoveObservable()
+                                                                    .Do(mouseMoveEvent => mouseMoveEvent.EventArgs.Handled = true)
+                                                                    .Select(mouseMoveEvent =>
+                                                                    {
+                                                                        var location = map.ViewportPointToLocation(mouseMoveEvent.EventArgs.GetPosition(map));
+                                                                        return location;
+                                                                    })
+                                                                    .Where(location => location != null)
+                                                                    .Do(location => p.Locations[locationIndex] = location)
+                                                                    .TakeUntil(map.MouseUpObservable())
+                                                                    .LastAsync()
+                                                                    .Select(location => (
+                                                                        Area: area,
+                                                                        CoordinateIndex: locationIndex,
+                                                                        Coordinate: new Coordinate(location.Latitude, location.Longitude)
+                                                                    ));
+                                                            })
+                                                            .None(Observable.Empty((Area: default(Area), CoordinateIndex: default(int), Coordinate: default(Coordinate))));
+                                                    })
+                                                    .Switch(),
+                                                move =>
+                                                {
+                                                    dispatch(new Message.MoveLocationMessage(move.Area, move.CoordinateIndex, move.Coordinate));
+                                                }
+                                            ),
 
-                                        var areaCenter = GetCenter(new[] { area });
-                                        yield return VNode.Create<Pushpin>()
+                                        VNode.Create<Pushpin>()
                                             .Set(p => p.Location, new Location(areaCenter.Latitude, areaCenter.Longitude))
                                             .Set(p => p.Content, area.Note.Substring(0, 1))
-                                            .Attach(ToolTipService.ToolTipProperty, area.Note);
-                                    }
-
-                                    return GetChildren();
+                                            .Attach(ToolTipService.ToolTipProperty, area.Note)
+                                    };
                                 }))
-                        .OnEvent(
-                            p => p
-                                .MouseDownObservable()
-                                .Select(mouseDownEvent =>
-                                {
-                                    var map = (Map)mouseDownEvent.Sender;
-                                    var mousePosition = mouseDownEvent.EventArgs.GetPosition(map);
-                                    if (!TryGetPolygonLocation(map, mousePosition, out var polygonLocation))
-                                    {
-                                        return Observable.Empty((Area: default(Area), CoordinateIndex: default(int), Coordinate: default(Coordinate)));
-                                    }
-
-                                    var area = (Area)polygonLocation.Polygon.Tag;
-
-                                    return map
-                                        .PreviewMouseMoveObservable()
-                                        .Do(mouseMoveEvent => mouseMoveEvent.EventArgs.Handled = true)
-                                        .Select(mouseMoveEvent =>
-                                        {
-                                            var location = map.ViewportPointToLocation(mouseMoveEvent.EventArgs.GetPosition(map));
-                                            return location;
-                                        })
-                                        .Where(location => location != null)
-                                        .Do(location => polygonLocation.Polygon.Locations[polygonLocation.LocationIndex] = location)
-                                        .TakeUntil(map.MouseUpObservable())
-                                        .LastAsync()
-                                        .Select(location => (
-                                            Area: area,
-                                            CoordinateIndex: polygonLocation.LocationIndex,
-                                            Coordinate: new Coordinate(location.Latitude, location.Longitude)
-                                         ));
-                                })
-                                .Switch(),
-                            move =>
-                            {
-                                dispatch(new Message.MoveLocationMessage(move.Area, move.CoordinateIndex, move.Coordinate));
-                            }
-                        )
                         .OnEvent(p =>
                             Observable
                                 .FromEventPattern<MapEventArgs>(
@@ -234,31 +235,20 @@ namespace Wpf.NoXaml
                                 })));
         }
 
-        private static bool TryGetPolygonLocation(Map map, Point point, out (MapPolygon Polygon, int LocationIndex) polygonLocation)
+        private static Option<int> TryGetPolygonLocation(MapPolygon polygon, Point point)
         {
-            var neighborPoints = map.GetSelfAndDescendants<MapPolygon>()
-                .SelectMany(polygon => polygon
-                    .Locations
-                    .Select((location, index) => new
-                    {
-                        Polygon = polygon,
-                        LocationIndex = index,
-                        Distance = map.LocationToViewportPoint(location).DistanceTo(point)
-                    })
-                )
-                .Where(p => p.Distance < 5) // pixels
-                .ToList();
+            var map = polygon.FindParent<WpfMap>();
+            var nearest = polygon
+                .Locations
+                .Select((location, index) =>
+                {
+                    var distance = map.LocationToViewportPoint(location).DistanceTo(point);
+                    return new { location, index, distance };
+                })
+                .MinBy(p => p.distance)
+                [0];
 
-            if (neighborPoints.Count == 0)
-            {
-                polygonLocation = default(ValueTuple<MapPolygon, int>);
-                return false;
-            }
-
-            var nearest = neighborPoints.MinBy(p => p.Distance)[0];
-
-            polygonLocation = (neighborPoints[0].Polygon, neighborPoints[0].LocationIndex);
-            return true;
+            return nearest.distance < 5 /* pixels */ ? Some(nearest.index) : None;
         }
 
         // see https://stackoverflow.com/a/14231286/1293659

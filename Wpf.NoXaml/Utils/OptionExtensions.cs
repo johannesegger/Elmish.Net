@@ -5,9 +5,9 @@ namespace Wpf.NoXaml.Utils
 {
     public static class OptionExtensions
     {
-        public static Option<TOut> OfType<TOut>(this Option<object> o)
+        public static Option<T> OfType<T>(this Option<object> o)
         {
-            return o.Bind(p => p is TOut q ? Some(q) : None);
+            return o.Bind(p => p is T q ? Some(q) : None);
         }
     }
 }

@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Linq.Expressions;
+using System.Reactive.Disposables;
 using System.Windows;
 using LanguageExt;
 using static LanguageExt.Prelude;
@@ -11,25 +12,25 @@ namespace Wpf.NoXaml.Utils
 {
     public interface IVNode
     {
-        object Materialize(Option<object> node);
+        IResourceDisposable Materialize(Option<object> node);
     }
 
     public interface IVNode<T> : IVNode
     {
-        T Materialize(Option<T> node);
+        IResourceDisposable<T> Materialize(Option<T> node);
     }
 
     public class VNode<T> : IVNode<T>
     {
-        private readonly Func<Option<T>, T> _createOrUpdate;
+        private readonly Func<Option<T>, IResourceDisposable<T>> _createOrUpdate;
 
-        public VNode(Func<Option<T>, T> createOrUpdate)
+        public VNode(Func<Option<T>, IResourceDisposable<T>> createOrUpdate)
         {
             _createOrUpdate = createOrUpdate;
         }
 
-        object IVNode.Materialize(Option<object> node) => Materialize(node.OfType<T>());
-        public T Materialize(Option<T> node) => _createOrUpdate(node);
+        IResourceDisposable IVNode.Materialize(Option<object> node) => Materialize(node.OfType<T>());
+        public IResourceDisposable<T> Materialize(Option<T> node) => _createOrUpdate(node);
     }
 
     public static class VNode
@@ -37,14 +38,14 @@ namespace Wpf.NoXaml.Utils
         public static IVNode<T> Create<T>()
             where T : DependencyObject, new()
         {
-            return new VNode<T>(node => node.IfNone(() => new T()));
+            return new VNode<T>(node => ResourceDisposable.Create(node.IfNone(() => new T())));
         }
 
         public static IVNode<TBase> Create<TBase, TImpl>()
             where TBase : DependencyObject
             where TImpl : TBase, new()
         {
-            return new VNode<TBase>(node => node.IfNone(() => new TImpl()));
+            return new VNode<TBase>(node => ResourceDisposable.Create(node.IfNone(() => new TImpl())));
         }
     }
 
@@ -53,7 +54,7 @@ namespace Wpf.NoXaml.Utils
         private static IVNode<T> Set<T, TProp>(
             this IVNode<T> vNode,
             Expression<Func<T, TProp>> propertyExpression,
-            Func<Option<TProp>, TProp> getValue,
+            Func<Option<TProp>, IResourceDisposable<TProp>> getValue,
             IEqualityComparer<TProp> equalityComparer)
         {
             var getter = propertyExpression.Compile();
@@ -61,13 +62,13 @@ namespace Wpf.NoXaml.Utils
             return new VNode<T>(node =>
             {
                 var o = vNode.Materialize(node);
-                var existingValue = getter(o);
+                var existingValue = getter(o.Resource);
                 var value = getValue(existingValue);
-                if (!equalityComparer.Equals(value, existingValue))
+                if (!equalityComparer.Equals(value.Resource, existingValue))
                 {
-                    setter(o, value);
+                    setter(o.Resource, value.Resource);
                 }
-                return o;
+                return o.AddDisposable(value);
             });
         }
 
@@ -88,7 +89,7 @@ namespace Wpf.NoXaml.Utils
             TProp value,
             IEqualityComparer<TProp> equalityComparer)
         {
-            return node.Set(propertyExpression, _ => value, equalityComparer);
+            return node.Set(propertyExpression, _ => ResourceDisposable.Create(value), equalityComparer);
         }
 
         public static IVNode<T> Set<T, TProp>(
@@ -112,30 +113,34 @@ namespace Wpf.NoXaml.Utils
                     .None(new List<object>());
 
                 var o = vNode.Materialize(node);
-                var newCollection = getter(o);
+                var newCollection = getter(o.Resource);
+                var materializedChildren = new CompositeDisposable();
                 for (var i = 0; i < children.Length; i++)
                 {
                     var oldItem = oldCollection.Count > i ? Some(oldCollection[i]) : None;
+
                     var newItem = children[i].Materialize(oldItem);
+                    materializedChildren.Add(newItem);
+
                     if (ReferenceEquals(oldCollection, newCollection))
                     {
                         oldItem
                             .Match(
                                 p =>
                                 {
-                                    if (!ReferenceEquals(p, newItem))
+                                    if (!ReferenceEquals(p, newItem.Resource))
                                     {
-                                        newCollection[i] = newItem;
+                                        newCollection[i] = newItem.Resource;
                                     }
                                 },
-                                () => newCollection.Add(newItem));
+                                () => newCollection.Add(newItem.Resource));
                     }
                     else
                     {
-                        newCollection.Add(newItem);
+                        newCollection.Add(newItem.Resource);
                     }
                 }
-                return o;
+                return o.AddDisposable(materializedChildren);
             });
         }
 
@@ -156,7 +161,7 @@ namespace Wpf.NoXaml.Utils
             return new VNode<T>(node =>
             {
                 var o = vNode.Materialize(node);
-                var newCollection = getter(o);
+                var newCollection = getter(o.Resource);
                 for (var i = 0; i < children.Length; i++)
                 {
                     if (newCollection.Count <= i)
@@ -188,15 +193,8 @@ namespace Wpf.NoXaml.Utils
             return new VNode<T>(node =>
             {
                 var o = vNode.Materialize(node);
-                // TODO this is certainly not always correct
-                // Instead find a way of disposing the subscription
-                // whenever the node is not used any longer.
-                if (node.Some(p => !ReferenceEquals(o, p)).None(true))
-                {
-                    getter(o)
-                        .Subscribe(dispatchMessage);
-                }
-                return o;
+                var subscription = getter(o.Resource).Subscribe(dispatchMessage);
+                return o.AddDisposable(subscription);
             });
         }
 
@@ -209,7 +207,7 @@ namespace Wpf.NoXaml.Utils
             return new VNode<T>(node =>
             {
                 var o = vNode.Materialize(node);
-                o.SetValue(dependencyProperty, value);
+                o.Resource.SetValue(dependencyProperty, value);
                 return o;
             });
         }
