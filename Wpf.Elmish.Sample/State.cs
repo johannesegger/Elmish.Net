@@ -37,6 +37,7 @@ namespace Wpf.Elmish
         public string Note { get; }
     }
 
+    [Equals]
     public class Coordinate
     {
         public Coordinate(double latitude, double longitude)

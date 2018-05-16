@@ -15,6 +15,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\Wpf.Elmish.Sample\Wpf.Elmish.Sample.csproj" />
     <ProjectReference Include="..\Wpf.Elmish\Wpf.Elmish.csproj" />
   </ItemGroup>
 

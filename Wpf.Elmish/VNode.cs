@@ -133,7 +133,8 @@ namespace Wpf.Elmish
                                 {
                                     if (!ReferenceEquals(p, newItem))
                                     {
-                                        newCollection[i] = newItem;
+                                        newCollection.RemoveAt(i);
+                                        newCollection.Insert(i, newItem);
                                     }
                                 },
                                 () => newCollection.Add(newItem));

@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
+using System.Numerics;
 using System.Reactive.Disposables;
 using System.Reactive.Linq;
 using System.Windows;
@@ -85,6 +86,14 @@ namespace Wpf.Elmish.Sample
                     var newState = state.Set(p => p.Areas[m.AreaIndex].Coordinates[m.CoordinateIndex].IsDragging, false);
                     return (newState, Cmd.None<Message>());
                 },
+                (Message.InsertLocationMessage m) =>
+                {
+                    var newState = state.Set(
+                        p => p.Areas[m.AreaIndex].Coordinates,
+                        state.Areas[m.AreaIndex].Coordinates.Insert(m.CoordinateIndex, new DraggableCoordinate(m.Coordinate, false))
+                    );
+                    return (newState, Cmd.None<Message>());
+                },
                 (Message.ChangeMapViewMessage m) =>
                 {
                     var newState = state
@@ -96,6 +105,8 @@ namespace Wpf.Elmish.Sample
 
         private static IVNode View(State state, Dispatch<Message> dispatch)
         {
+            const double tolerancePixels = 10;
+
             return VNode.Create<StackPanel>()
                 .SetChildren(
                     p => p.Children,
@@ -118,13 +129,45 @@ namespace Wpf.Elmish.Sample
                                         .SelectMany((area, i) => AreaView(i, area, dispatch))
                                 )
                         )
+                        .Subscribe(map =>
+                        {
+                            var d = new CompositeDisposable();
+
+                            if (!state.Areas.SelectMany(p => p.Coordinates).Any(p => p.IsDragging))
+                            {
+                                map
+                                    .PreviewMouseDownObservable()
+                                    .Select(e => e.EventArgs.GetPosition(map))
+                                    .Choose(point => TryGetEdgePoint(map, point, tolerancePixels))
+                                    .Select(((int areaIndex, int coordinateIndex) p) =>
+                                        new Message.BeginMoveLocationMessage(
+                                            p.areaIndex,
+                                            p.coordinateIndex
+                                        )
+                                    )
+                                    .Subscribe(m => dispatch(m))
+                                    .DisposeWith(d);
+                            }
+
+                            return d;
+                        })
+                        .Subscribe(map => map
+                            .MouseDownObservable()
+                            .Where(e => e.EventArgs.ClickCount == 2)
+                            .Select(mouseMoveEvent => mouseMoveEvent.EventArgs.GetPosition(map))
+                            .Choose(point => TryGetVertexPoint(map, point, tolerancePixels))
+                            .Subscribe(((int areaIndex, int coordinateIndex, Coordinate coordinate) q) =>
+                                dispatch(new Message.InsertLocationMessage(q.areaIndex, q.coordinateIndex, q.coordinate))
+                            )
+                        )
                         .Subscribe(p =>
                             Observable
                                 .FromEventPattern<MapEventArgs>(
                                     h => p.ViewChangeEnd += h,
                                     h => p.ViewChangeEnd -= h
                                 )
-                                .Select(e => new Message.ChangeMapViewMessage(p.ZoomLevel, new Coordinate(p.Center.Latitude, p.Center.Longitude)))
+                                .Select(_ => new Message.ChangeMapViewMessage(p.ZoomLevel, new Coordinate(p.Center.Latitude, p.Center.Longitude)))
+                                .Where(m => m.ZoomLevel != state.MapZoomLevel || m.Center != state.Center)
                                 .Subscribe(m => dispatch(m))
                         ),
                     VNode.Create<DataGrid>()
@@ -154,29 +197,23 @@ namespace Wpf.Elmish.Sample
 
             var areaCenter = GetCenter(new[] { area });
 
-            const double tolerancePixels = 10;
-
             yield return VNode.Create<MapPolygon>()
                 .Set(p => p.Stroke, new SolidColorBrush(Colors.PaleVioletRed))
                 .Set(p => p.StrokeThickness, 3)
                 .Set(p => p.StrokeLineJoin, PenLineJoin.Round)
                 .Set(p => p.Locations, new LocationCollection())
                 .SetChildren(p => p.Locations, locations)
-                .Set(p => p.Opacity, 0.7)
-                .Subscribe(p => p
-                    .MouseDownObservable()
-                    .Where(q => q.EventArgs.ClickCount == 2)
-                    .Subscribe(_ => { })
-                );
-            
+                .Set(p => p.Opacity, 0.7);
+
+            var edgeWidth = 10;
             var edges = area.Coordinates
                 .Select((p, locationIndex) => VNode.Create<Ellipse>()
-                    .Set(q => q.Width, tolerancePixels)
-                    .Set(q => q.Height, tolerancePixels)
+                    .Set(q => q.Width, edgeWidth)
+                    .Set(q => q.Height, edgeWidth)
                     .Set(q => q.Fill, new SolidColorBrush(Colors.PaleVioletRed))
                     .Set(q => q.Opacity, 0.9)
                     .Attach(MapLayer.PositionProperty, new Location(p.Coordinate.Latitude, p.Coordinate.Longitude))
-                    .Attach(MapLayer.PositionOffsetProperty, new Point(-tolerancePixels / 2, -tolerancePixels / 2))
+                    .Attach(MapLayer.PositionOffsetProperty, new Point(-edgeWidth / 2.0, -edgeWidth / 2.0))
                     .Subscribe(q =>
                     {
                         var d = new CompositeDisposable();
@@ -205,19 +242,6 @@ namespace Wpf.Elmish.Sample
                                 .Subscribe(m => dispatch(m))
                                 .DisposeWith(d);
                         }
-                        else
-                        {
-                            q
-                                .PreviewMouseDownObservable()
-                                .Select(location =>
-                                    new Message.BeginMoveLocationMessage(
-                                        areaIndex,
-                                        locationIndex
-                                    )
-                                )
-                                .Subscribe(m => dispatch(m))
-                                .DisposeWith(d);
-                        }
 
                         return d;
                     })
@@ -233,20 +257,68 @@ namespace Wpf.Elmish.Sample
                 .Attach(ToolTipService.ToolTipProperty, area.Note);
         }
 
-        private static Option<int> TryGetPolygonLocation(MapPolygon polygon, Point point, double tolerancePixels)
+        private static Option<(int areaIndex, int coordinateIndex, Coordinate coordinate)> TryGetVertexPoint(
+            WpfMap map,
+            Point point,
+            double tolerancePixels)
         {
-            var map = polygon.TryFindParent<WpfMap>();
-            var nearest = polygon
-                .Locations
-                .Select((location, index) =>
+            var nearest = map
+                .FindChildren<MapPolygon>(forceUsingTheVisualTreeHelper: true)
+                .SelectMany((polygon, polygonIndex) =>
                 {
-                    var distance = map.LocationToViewportPoint(location).DistanceTo(point);
-                    return new { location, index, distance };
+                    return polygon
+                        .Locations
+                        .Concat(Optional(polygon.Locations.FirstOrDefault()))
+                        .Buffer(2, 1)
+                        .Where(buffer => buffer.Count == 2)
+                        .Select((buffer, i) =>
+                        {
+                            var point1 = map.LocationToViewportPoint(buffer[0]);
+                            var point2 = map.LocationToViewportPoint(buffer[1]);
+                            var lineVector = new Vector2((float)(point2.X - point1.X), (float)(point2.Y - point1.Y));
+                            var pointVector = new Vector2((float)(point.X - point1.X), (float)(point.Y - point1.Y));
+                            var nearestPoint = pointVector.GetNearestPointAt(lineVector);
+                            var distance = Vector2.Distance(pointVector, nearestPoint);
+                            var newPoint = new Point(point1.X + nearestPoint.X, point1.Y + nearestPoint.Y);
+                            var newLocation = map.ViewportPointToLocation(newPoint);
+                            var newCoordinate = new Coordinate(newLocation.Latitude, newLocation.Longitude);
+
+                            return new { AreaIndex = polygonIndex, CoordinateIndex = i + 1, Distance = distance, Coordinate = newCoordinate };
+                        });
                 })
-                .MinBy(p => p.distance)
+                .MinBy(p => p.Distance)
                 [0];
 
-            return nearest.distance < tolerancePixels ? Some(nearest.index) : None;
+            return nearest.Distance < tolerancePixels
+                ? Some((nearest.AreaIndex, nearest.CoordinateIndex, nearest.Coordinate))
+                : None;
+        }
+
+        private static Option<(int areaIndex, int coordinateIndex)> TryGetEdgePoint(
+            WpfMap map,
+            Point point,
+            double tolerancePixels)
+        {
+            var nearest = map
+                .FindChildren<MapPolygon>(forceUsingTheVisualTreeHelper: true)
+                .SelectMany((polygon, polygonIndex) =>
+                {
+                    return polygon
+                        .Locations
+                        .Select((location, i) =>
+                        {
+                            var edgePoint = map.LocationToViewportPoint(location);
+                            var distance = edgePoint.DistanceTo(point);
+
+                            return new { AreaIndex = polygonIndex, CoordinateIndex = i, Distance = distance };
+                        });
+                })
+                .MinBy(p => p.Distance)
+                [0];
+
+            return nearest.Distance < tolerancePixels
+                ? Some((nearest.AreaIndex, nearest.CoordinateIndex))
+                : None;
         }
 
         // see https://stackoverflow.com/a/14231286/1293659

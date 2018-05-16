@@ -6,9 +6,11 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="Equals.Fody" Version="1.9.0" />
     <PackageReference Include="MahApps.Metro" Version="1.6.2" />
     <PackageReference Include="Microsoft.Maps.MapControl.WPF" Version="1.0.1" />
     <PackageReference Include="OneOf" Version="2.1.124" />
+    <PackageReference Include="System.Numerics.Vectors" Version="4.4.0" />
   </ItemGroup>
 
   <ItemGroup>
