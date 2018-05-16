@@ -58,8 +58,8 @@ namespace Wpf.Elmish.Sample
             var areas =
                 ImmutableList<Area>
                     .Empty
-                    .Add(new Area(new[] { DraggableCoordinate.Create(47.946812, 13.777095), DraggableCoordinate.Create(47.944375, 13.777380), DraggableCoordinate.Create(47.944338, 13.776286), DraggableCoordinate.Create(47.946508, 13.776049), DraggableCoordinate.Create(47.946485, 13.776685) }, "Enser"))
-                    .Add(new Area(new[] { DraggableCoordinate.Create(47.946927, 13.777057), DraggableCoordinate.Create(47.947813, 13.776992), DraggableCoordinate.Create(47.948885, 13.780077), DraggableCoordinate.Create(47.948237, 13.780352) }, "Galler"));
+                    .Add(Area.Create(new[] { DraggableCoordinate.Create(47.946812, 13.777095), DraggableCoordinate.Create(47.944375, 13.777380), DraggableCoordinate.Create(47.944338, 13.776286), DraggableCoordinate.Create(47.946508, 13.776049), DraggableCoordinate.Create(47.946485, 13.776685) }, "Enser"))
+                    .Add(Area.Create(new[] { DraggableCoordinate.Create(47.946927, 13.777057), DraggableCoordinate.Create(47.947813, 13.776992), DraggableCoordinate.Create(47.948885, 13.780077), DraggableCoordinate.Create(47.948237, 13.780352) }, "Galler"));
             var initialState = State
                 .Empty
                 .Set(p => p.Areas, areas)
@@ -92,6 +92,24 @@ namespace Wpf.Elmish.Sample
                         p => p.Areas[m.AreaIndex].Coordinates,
                         state.Areas[m.AreaIndex].Coordinates.Insert(m.CoordinateIndex, new DraggableCoordinate(m.Coordinate, false))
                     );
+                    return (newState, Cmd.None<Message>());
+                },
+                (Message.RemoveLocationMessage m) =>
+                {
+                    var newState = state.Set(
+                        p => p.Areas[m.AreaIndex].Coordinates,
+                        state.Areas[m.AreaIndex].Coordinates.RemoveAt(m.CoordinateIndex)
+                    );
+                    return (newState, Cmd.None<Message>());
+                },
+                (Message.SelectAreaMessage m) =>
+                {
+                    Area Update(Area area, int index)
+                    {
+                        return area.Set(p => p.IsSelected, index == m.AreaIndex);
+                    }
+
+                    var newState = state.Set(p => p.Areas, state.Areas.Select(Update));
                     return (newState, Cmd.None<Message>());
                 },
                 (Message.ChangeMapViewMessage m) =>
@@ -152,12 +170,20 @@ namespace Wpf.Elmish.Sample
                             return d;
                         })
                         .Subscribe(map => map
-                            .MouseDownObservable()
+                            .MouseLeftButtonDownObservable()
                             .Where(e => e.EventArgs.ClickCount == 2)
                             .Select(mouseMoveEvent => mouseMoveEvent.EventArgs.GetPosition(map))
                             .Choose(point => TryGetVertexPoint(map, point, tolerancePixels))
                             .Subscribe(((int areaIndex, int coordinateIndex, Coordinate coordinate) q) =>
                                 dispatch(new Message.InsertLocationMessage(q.areaIndex, q.coordinateIndex, q.coordinate))
+                            )
+                        )
+                        .Subscribe(map => map
+                            .MouseRightButtonDownObservable()
+                            .Select(mouseMoveEvent => mouseMoveEvent.EventArgs.GetPosition(map))
+                            .Choose(point => TryGetEdgePoint(map, point, tolerancePixels))
+                            .Subscribe(((int areaIndex, int coordinateIndex) q) =>
+                                dispatch(new Message.RemoveLocationMessage(q.areaIndex, q.coordinateIndex))
                             )
                         )
                         .Subscribe(p =>
@@ -172,14 +198,24 @@ namespace Wpf.Elmish.Sample
                         ),
                     VNode.Create<DataGrid>()
                         .Set(p => p.AutoGenerateColumns, false)
+                        .Set(p => p.IsReadOnly, true)
+                        .Set(p => p.SelectedIndex, state.Areas.FindIndex(area => area.IsSelected))
                         .SetChildren(p => p.Columns,
                             VNode.Create<DataGridTextColumn>()
                                 .Set(p => p.Header, "Title")
-                                .Set(p => p.Binding, new Binding("Title")))
+                                .Set(p => p.Binding, new Binding("Title"))
+                        )
                         .SetChildren(
                             p => p.Items,
                             state.Areas
-                                .Select(area => new { Title = area.Note })));
+                                .Select((area, index) => new AreaInformation(area.Note, index))
+                        )
+                        .Subscribe(
+                            p => p.SelectionChangedObservable()
+                                .Choose(q => Optional(q.EventArgs.AddedItems.OfType<AreaInformation>().FirstOrDefault()))
+                                .Subscribe(q => dispatch(new Message.SelectAreaMessage(q.Index)))
+                        )
+                );
         }
 
         private static IEnumerable<IVNode> AreaView(
@@ -197,8 +233,10 @@ namespace Wpf.Elmish.Sample
 
             var areaCenter = GetCenter(new[] { area });
 
+            var color = area.IsSelected ? Colors.OrangeRed : Colors.PaleVioletRed;
+
             yield return VNode.Create<MapPolygon>()
-                .Set(p => p.Stroke, new SolidColorBrush(Colors.PaleVioletRed))
+                .Set(p => p.Stroke, new SolidColorBrush(color))
                 .Set(p => p.StrokeThickness, 3)
                 .Set(p => p.StrokeLineJoin, PenLineJoin.Round)
                 .Set(p => p.Locations, new LocationCollection())
@@ -210,7 +248,7 @@ namespace Wpf.Elmish.Sample
                 .Select((p, locationIndex) => VNode.Create<Ellipse>()
                     .Set(q => q.Width, edgeWidth)
                     .Set(q => q.Height, edgeWidth)
-                    .Set(q => q.Fill, new SolidColorBrush(Colors.PaleVioletRed))
+                    .Set(q => q.Fill, new SolidColorBrush(color))
                     .Set(q => q.Opacity, 0.9)
                     .Attach(MapLayer.PositionProperty, new Location(p.Coordinate.Latitude, p.Coordinate.Longitude))
                     .Attach(MapLayer.PositionOffsetProperty, new Point(-edgeWidth / 2.0, -edgeWidth / 2.0))

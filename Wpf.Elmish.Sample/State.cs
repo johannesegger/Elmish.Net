@@ -12,7 +12,7 @@ namespace Wpf.Elmish
         public State(double mapZoomLevel, Coordinate center, IEnumerable<Area> areas, Area newArea)
         {
             MapZoomLevel = mapZoomLevel;
-            Center = center;
+            Center = center ?? throw new ArgumentNullException(nameof(center));
             Areas = areas?.ToImmutableList() ?? throw new ArgumentNullException(nameof(areas));
             NewArea = newArea ?? throw new ArgumentNullException(nameof(newArea));
         }
@@ -25,16 +25,23 @@ namespace Wpf.Elmish
 
     public class Area
     {
-        public static readonly Area Empty = new Area(new DraggableCoordinate[0], "");
+        public static readonly Area Empty = new Area(new DraggableCoordinate[0], "", false);
 
-        public Area(IEnumerable<DraggableCoordinate> coordinates, string note)
+        public Area(IEnumerable<DraggableCoordinate> coordinates, string note, bool isSelected)
         {
             Coordinates = coordinates?.ToImmutableList() ?? throw new ArgumentNullException(nameof(coordinates));
             Note = note ?? throw new ArgumentNullException(nameof(note));
+            IsSelected = isSelected;
         }
 
         public ImmutableList<DraggableCoordinate> Coordinates { get; }
         public string Note { get; }
+        public bool IsSelected { get; }
+
+        public static Area Create(IEnumerable<DraggableCoordinate> coordinates, string note)
+        {
+            return new Area(coordinates, note, isSelected: false);
+        }
     }
 
     [Equals]
@@ -54,16 +61,16 @@ namespace Wpf.Elmish
     {
         public DraggableCoordinate(Coordinate coordinate, bool isDragging)
         {
-            Coordinate = coordinate;
+            Coordinate = coordinate ?? throw new ArgumentNullException(nameof(coordinate));
             IsDragging = isDragging;
         }
+
+        public Coordinate Coordinate { get; }
+        public bool IsDragging { get; }
 
         public static DraggableCoordinate Create(double latitude, double longitude)
         {
             return new DraggableCoordinate(new Coordinate(latitude, longitude), isDragging: false);
         }
-
-        public Coordinate Coordinate { get; }
-        public bool IsDragging { get; }
     }
 }

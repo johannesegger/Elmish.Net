@@ -7,6 +7,8 @@ namespace Wpf.Elmish
         Message.MoveLocationMessage,
         Message.EndMoveLocationMessage,
         Message.InsertLocationMessage,
+        Message.RemoveLocationMessage,
+        Message.SelectAreaMessage,
         Message.ChangeMapViewMessage>
     {
         public class MoveLocationMessage : Message
@@ -59,6 +61,28 @@ namespace Wpf.Elmish
             public int AreaIndex { get; }
             public int CoordinateIndex { get; }
             public Coordinate Coordinate { get; }
+        }
+
+        public class RemoveLocationMessage : Message
+        {
+            public RemoveLocationMessage(int areaIndex, int coordinateIndex)
+            {
+                AreaIndex = areaIndex;
+                CoordinateIndex = coordinateIndex;
+            }
+
+            public int AreaIndex { get; }
+            public int CoordinateIndex { get; }
+        }
+
+        public class SelectAreaMessage : Message
+        {
+            public SelectAreaMessage(int areaIndex)
+            {
+                AreaIndex = areaIndex;
+            }
+
+            public int AreaIndex { get; }
         }
 
         public class ChangeMapViewMessage : Message

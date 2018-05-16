@@ -144,6 +144,12 @@ namespace Wpf.Elmish
                         newCollection.Add(newItem);
                     }
                 }
+
+                for (var i = oldCollection.Count - 1; i >= children.Length; i--)
+                {
+                    oldCollection.RemoveAt(i);
+                }
+
                 return o.AddDisposable(materializedChildren);
             });
         }
