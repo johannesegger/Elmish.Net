@@ -9,7 +9,7 @@
             Index = index;
         }
 
-        public string Title { get; }
+        public string Title { get; set; }
         public int Index { get; }
     }
 }

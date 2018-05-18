@@ -12,19 +12,26 @@ namespace Wpf.Elmish
     {
         private static TSetLambda CreateSetter<TGetLambda, TSetLambda>(
             this Expression<TGetLambda> getter,
-            params Type[] propertyTypes)
+            Type propertyType)
         {
             var memberExpression = (MemberExpression)getter.Body;
             var property = (PropertyInfo)memberExpression.Member;
             var setMethod = property.GetSetMethod();
+            if (setMethod == null)
+            {
+                return default(TSetLambda);
+            }
 
-            var parameterValues = propertyTypes
-                .Select(Expression.Parameter)
-                .ToArray();
+            var parameterValue = Expression.Parameter(propertyType);
+
+            var callParameter =
+                Equals(propertyType, memberExpression.Type)
+                ? (Expression)parameterValue
+                : Expression.Convert(parameterValue, memberExpression.Type);
 
             var newExpression = Expression.Lambda<TSetLambda>(
-                Expression.Call(memberExpression.Expression, setMethod, parameterValues),
-                getter.Parameters.Concat(parameterValues)
+                Expression.Call(memberExpression.Expression, setMethod, callParameter),
+                getter.Parameters.Concat(new[] { parameterValue })
             );
             return newExpression.Compile();
         }

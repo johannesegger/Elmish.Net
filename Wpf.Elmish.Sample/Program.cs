@@ -10,6 +10,7 @@ using System.Windows.Controls;
 using System.Windows.Data;
 using System.Windows.Media;
 using System.Windows.Shapes;
+using System.Windows.Threading;
 using LanguageExt;
 using MahApps.Metro.Controls;
 using Microsoft.Maps.MapControl.WPF;
@@ -112,6 +113,11 @@ namespace Wpf.Elmish.Sample
                     var newState = state.Set(p => p.Areas, state.Areas.Select(Update));
                     return (newState, Cmd.None<Message>());
                 },
+                (Message.UpdateAreaTitleMessage m) =>
+                {
+                    var newState = state.Set(p => p.Areas[m.AreaIndex].Note, m.Title);
+                    return (newState, Cmd.None<Message>());
+                },
                 (Message.ChangeMapViewMessage m) =>
                 {
                     var newState = state
@@ -126,7 +132,7 @@ namespace Wpf.Elmish.Sample
             const double tolerancePixels = 10;
 
             return VNode.Create<StackPanel>()
-                .SetChildren(
+                .SetCollection(
                     p => p.Children,
                     VNode.Create<WpfMap>()
                         .Set(
@@ -138,10 +144,10 @@ namespace Wpf.Elmish.Sample
                         .Set(p => p.ZoomLevel, state.MapZoomLevel)
                         .Set(p => p.Height, 500)
                         .Set(p => p.Culture, "de-AT")
-                        .SetChildren(
+                        .SetCollection(
                             p => p.Children,
                             VNode.Create<MapLayer>()
-                                .SetChildren(
+                                .SetCollection(
                                     p => p.Children,
                                     state.Areas
                                         .SelectMany((area, i) => AreaView(i, area, dispatch))
@@ -198,22 +204,40 @@ namespace Wpf.Elmish.Sample
                         ),
                     VNode.Create<DataGrid>()
                         .Set(p => p.AutoGenerateColumns, false)
-                        .Set(p => p.IsReadOnly, true)
                         .Set(p => p.SelectedIndex, state.Areas.FindIndex(area => area.IsSelected))
-                        .SetChildren(p => p.Columns,
+                        .SetCollection(p => p.Columns,
                             VNode.Create<DataGridTextColumn>()
                                 .Set(p => p.Header, "Title")
-                                .Set(p => p.Binding, new Binding("Title"))
+                                .Set(p => p.Binding, new Binding(nameof(AreaInformation.Title)) { Mode = BindingMode.TwoWay })
                         )
-                        .SetChildren(
-                            p => p.Items,
+                        .SetCollection(
+                            p => p.ItemsSource,
                             state.Areas
                                 .Select((area, index) => new AreaInformation(area.Note, index))
+                                .ToList()
                         )
                         .Subscribe(
                             p => p.SelectionChangedObservable()
-                                .Choose(q => Optional(q.EventArgs.AddedItems.OfType<AreaInformation>().FirstOrDefault()))
-                                .Subscribe(q => dispatch(new Message.SelectAreaMessage(q.Index)))
+                                .Select(q => q.EventArgs.AddedItems.OfType<AreaInformation>().FirstOrDefault())
+                                .Subscribe(q => dispatch(new Message.SelectAreaMessage(q?.Index ?? -1)))
+                        )
+                        .Subscribe(
+                            p => p
+                                .RowEditEndingObservable()
+                                .Subscribe(e =>
+                                {
+                                    // WPF doesn't contain a `RowEditEnded` event
+                                    // so the common suggestion is to wait until
+                                    // the data context is updated before using it.
+                                    // see e.g. item 5 in https://blogs.msdn.microsoft.com/vinsibal/2009/04/14/5-more-random-gotchas-with-the-wpf-datagrid/
+                                    App.Current.Dispatcher.BeginInvoke(
+                                        new Action(() =>
+                                        {
+                                            var area = (AreaInformation)e.EventArgs.Row.Item;
+                                            dispatch(new Message.UpdateAreaTitleMessage(area.Index, area.Title));
+                                        }),
+                                        DispatcherPriority.Background);
+                                })
                         )
                 );
         }
@@ -223,13 +247,9 @@ namespace Wpf.Elmish.Sample
             Area area,
             Dispatch<Message> dispatch)
         {
-            var locationCollection = new LocationCollection();
             var locations = area
                 .Coordinates
-                .Select(p => new Location(p.Coordinate.Latitude, p.Coordinate.Longitude))
-                .ToList();
-
-            locations.ForEach(locationCollection.Add);
+                .Select(p => new Location(p.Coordinate.Latitude, p.Coordinate.Longitude));
 
             var areaCenter = GetCenter(new[] { area });
 
@@ -240,7 +260,7 @@ namespace Wpf.Elmish.Sample
                 .Set(p => p.StrokeThickness, 3)
                 .Set(p => p.StrokeLineJoin, PenLineJoin.Round)
                 .Set(p => p.Locations, new LocationCollection())
-                .SetChildren(p => p.Locations, locations)
+                .SetCollection(p => p.Locations, locations)
                 .Set(p => p.Opacity, 0.7);
 
             var edgeWidth = 10;

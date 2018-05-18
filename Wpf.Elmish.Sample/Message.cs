@@ -9,6 +9,7 @@ namespace Wpf.Elmish
         Message.InsertLocationMessage,
         Message.RemoveLocationMessage,
         Message.SelectAreaMessage,
+        Message.UpdateAreaTitleMessage,
         Message.ChangeMapViewMessage>
     {
         public class MoveLocationMessage : Message
@@ -83,6 +84,18 @@ namespace Wpf.Elmish
             }
 
             public int AreaIndex { get; }
+        }
+
+        public class UpdateAreaTitleMessage : Message
+        {
+            public UpdateAreaTitleMessage(int areaIndex, string title)
+            {
+                AreaIndex = areaIndex;
+                Title = title;
+            }
+
+            public int AreaIndex { get; }
+            public string Title { get; }
         }
 
         public class ChangeMapViewMessage : Message

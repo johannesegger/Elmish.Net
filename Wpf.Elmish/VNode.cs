@@ -90,7 +90,10 @@ namespace Wpf.Elmish
             TProp value,
             IEqualityComparer<TProp> equalityComparer)
         {
-            return node.Set(propertyExpression, _ => ResourceDisposable.Create(value), equalityComparer);
+            return node.Set(
+                propertyExpression,
+                _ => ResourceDisposable.Create(value),
+                equalityComparer);
         }
 
         public static IVNode<T> Set<T, TProp>(
@@ -98,10 +101,13 @@ namespace Wpf.Elmish
             Expression<Func<T, TProp>> propertyExpression,
             TProp value)
         {
-            return node.Set(propertyExpression, value, EqualityComparer<TProp>.Default);
+            return node.Set(
+                propertyExpression,
+                value,
+                EqualityComparer<TProp>.Default);
         }
 
-        public static IVNode<T> SetChildren<T>(
+        public static IVNode<T> SetCollection<T>(
             this IVNode<T> vNode,
             Expression<Func<T, IList>> propertyExpression,
             params IVNode[] children)
@@ -133,6 +139,7 @@ namespace Wpf.Elmish
                                 {
                                     if (!ReferenceEquals(p, newItem))
                                     {
+                                        // WPF doesn't allow updating using the indexer
                                         newCollection.RemoveAt(i);
                                         newCollection.Insert(i, newItem);
                                     }
@@ -154,20 +161,50 @@ namespace Wpf.Elmish
             });
         }
 
-        public static IVNode<T> SetChildren<T>(
+        public static IVNode<T> SetCollection<T>(
             this IVNode<T> node,
             Expression<Func<T, IList>> propertyExpression,
             IEnumerable<IVNode> children)
         {
-            return node.SetChildren(propertyExpression, children.ToArray());
+            return node.SetCollection(propertyExpression, children.ToArray());
         }
 
-        public static IVNode<T> SetChildren<T>(
+        public static IVNode<T> SetCollection<T>(
+            this IVNode<T> vNode,
+            Expression<Func<T, IEnumerable>> propertyExpression,
+            params object[] children)
+        {
+            var getter = propertyExpression.Compile();
+            var setter = propertyExpression.CreateSetter();
+            if (setter == null)
+            {
+                throw new Exception($"Setter must not be null. Type: {typeof(T).FullName}, Property: {propertyExpression}");
+            }
+
+            return new VNode<T>(node =>
+            {
+                var o = vNode.Materialize(node);
+                var newCollection = getter(o.Resource);
+                setter(o.Resource, children);
+                return o;
+            });
+        }
+
+        public static IVNode<T> SetCollection<T>(
+            this IVNode<T> node,
+            Expression<Func<T, IEnumerable>> propertyExpression,
+            IEnumerable<object> children)
+        {
+            return node.SetCollection(propertyExpression, children.ToArray());
+        }
+
+        public static IVNode<T> SetCollection<T>(
             this IVNode<T> vNode,
             Expression<Func<T, IList>> propertyExpression,
             params object[] children)
         {
             var getter = propertyExpression.Compile();
+            var setter = propertyExpression.CreateSetter();
             return new VNode<T>(node =>
             {
                 var o = vNode.Materialize(node);
@@ -183,16 +220,17 @@ namespace Wpf.Elmish
                         newCollection[i] = children[i];
                     }
                 }
+
                 return o;
             });
         }
 
-        public static IVNode<T> SetChildren<T>(
+        public static IVNode<T> SetCollection<T>(
             this IVNode<T> node,
             Expression<Func<T, IList>> propertyExpression,
             IEnumerable<object> children)
         {
-            return node.SetChildren(propertyExpression, children.ToArray());
+            return node.SetCollection(propertyExpression, children.ToArray());
         }
 
         public static IVNode<T> Subscribe<T>(
