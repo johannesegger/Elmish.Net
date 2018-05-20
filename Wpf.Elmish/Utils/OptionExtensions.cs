@@ -5,9 +5,11 @@ namespace Wpf.Elmish.Utils
 {
     internal static class OptionExtensions
     {
-        public static Option<T> OfType<T>(this Option<object> o)
+        public static Option<T> TryCast<T>(this IOptional o)
         {
-            return o.Bind(p => p is T q ? Some(q) : None);
+            return o.MatchUntyped(
+                p => p is T q ? Some(q) : None,
+                () => None);
         }
     }
 }

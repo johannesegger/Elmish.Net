@@ -1,6 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
+using System.Collections.ObjectModel;
+using System.Diagnostics;
 using System.Linq;
 using System.Numerics;
 using System.Reactive.Disposables;
@@ -118,6 +120,32 @@ namespace Wpf.Elmish.Sample
                     var newState = state.Set(p => p.Areas[m.AreaIndex].Note, m.Title);
                     return (newState, Cmd.None<Message>());
                 },
+                (Message.AddAreaMessage m) =>
+                {
+                    var newArea = new Area(Enumerable.Empty<DraggableCoordinate>(), m.Title, isSelected: false, isDefined: false);
+                    var newState = state.Set(p => p.Areas, state.Areas.Add(newArea));
+                    var newAreaIndex = newState.Areas.Count - 1;
+                    var cmd = Cmd.Batch(
+                        Cmd.OfMsg<Message>(new Message.SelectAreaMessage(newAreaIndex)),
+                        Cmd.OfMsg<Message>(new Message.BeginDefineAreaMessage(newAreaIndex))
+                    );
+                    return (newState, cmd);
+                },
+                (Message.BeginDefineAreaMessage m) =>
+                {
+                    Area Update(Area area, int index)
+                    {
+                        return area.Set(p => p.IsDefined, index != m.AreaIndex);
+                    }
+
+                    var newState = state.Set(p => p.Areas, state.Areas.Select(Update));
+                    return (newState, Cmd.None<Message>());
+                },
+                (Message.EndDefineAreaMessage m) =>
+                {
+                    var newState = state.Set(p => p.Areas[m.AreaIndex].IsDefined, true);
+                    return (newState, Cmd.None<Message>());
+                },
                 (Message.ChangeMapViewMessage m) =>
                 {
                     var newState = state
@@ -140,7 +168,7 @@ namespace Wpf.Elmish.Sample
                             new ApplicationIdCredentialsProvider("AiYVQeyKth-2j8dkcIPe58rz3zxNt6Hw-ydHJhZLfklNfZPrWM9HlBr6LTnIgy65"),
                             EqualityComparer.Create((CredentialsProvider p) => ((ApplicationIdCredentialsProvider)p).ApplicationId))
                         .Set(p => p.Mode, VNode.Create<MapMode, AerialMode>())
-                        .Set(p => p.Center, new Location(state.Center.Latitude, state.Center.Longitude))
+                        .Set(p => p.Center, state.Center.ToLocation())
                         .Set(p => p.ZoomLevel, state.MapZoomLevel)
                         .Set(p => p.Height, 500)
                         .Set(p => p.Culture, "de-AT")
@@ -173,6 +201,34 @@ namespace Wpf.Elmish.Sample
                                     .DisposeWith(d);
                             }
 
+                            var definingAreaIndex = state.Areas.FindIndex(a => !a.IsDefined);
+                            if (definingAreaIndex >= 0)
+                            {
+                                var definingArea = state.Areas[definingAreaIndex];
+                                map
+                                    .PreviewMouseDownObservable()
+                                    .Select(e => e.EventArgs.GetPosition(map))
+                                    .Subscribe(position =>
+                                    {
+                                        var isClosing =
+                                            definingArea.Coordinates.Count > 0
+                                            && definingArea.Coordinates[0].Coordinate.ToLocation().ToViewportPoint(map).DistanceTo(position) < tolerancePixels;
+                                        if (isClosing)
+                                        {
+                                            dispatch(new Message.EndDefineAreaMessage(definingAreaIndex));
+                                        }
+                                        else
+                                        {
+                                            var message = new Message.InsertLocationMessage(
+                                                definingAreaIndex,
+                                                definingArea.Coordinates.Count,
+                                                map.ViewportPointToLocation(position).ToCoordinate());
+                                            dispatch(message);
+                                        }
+                                    })
+                                    .DisposeWith(d);
+                            }
+
                             return d;
                         })
                         .Subscribe(map => map
@@ -198,22 +254,26 @@ namespace Wpf.Elmish.Sample
                                     h => p.ViewChangeEnd += h,
                                     h => p.ViewChangeEnd -= h
                                 )
-                                .Select(_ => new Message.ChangeMapViewMessage(p.ZoomLevel, new Coordinate(p.Center.Latitude, p.Center.Longitude)))
+                                .Select(_ => new Message.ChangeMapViewMessage(p.ZoomLevel, p.Center.ToCoordinate()))
                                 .Where(m => m.ZoomLevel != state.MapZoomLevel || m.Center != state.Center)
                                 .Subscribe(m => dispatch(m))
                         ),
                     VNode.Create<DataGrid>()
                         .Set(p => p.AutoGenerateColumns, false)
+                        .Set(p => p.CanUserAddRows, true)
                         .Set(p => p.SelectedIndex, state.Areas.FindIndex(area => area.IsSelected))
                         .SetCollection(p => p.Columns,
                             VNode.Create<DataGridTextColumn>()
                                 .Set(p => p.Header, "Title")
-                                .Set(p => p.Binding, new Binding(nameof(AreaInformation.Title)) { Mode = BindingMode.TwoWay })
+                                .Set(p => p.Binding, new Binding(nameof(AreaInformation.Title))),
+                            VNode.Create<DataGridTextColumn>()
+                                .Set(p => p.Header, "Number of edges")
+                                .Set(p => p.Binding, new Binding(nameof(AreaInformation.EdgeCount)))
                         )
                         .SetCollection(
                             p => p.ItemsSource,
                             state.Areas
-                                .Select((area, index) => new AreaInformation(area.Note, index))
+                                .Select((area, index) => new AreaInformation(area.Note, area.Coordinates.Count, index))
                                 .ToList()
                         )
                         .Subscribe(
@@ -234,7 +294,11 @@ namespace Wpf.Elmish.Sample
                                         new Action(() =>
                                         {
                                             var area = (AreaInformation)e.EventArgs.Row.Item;
-                                            dispatch(new Message.UpdateAreaTitleMessage(area.Index, area.Title));
+                                            var message =
+                                                area.IsNewArea
+                                                ? (Message)new Message.AddAreaMessage(area.Title)
+                                                : new Message.UpdateAreaTitleMessage(area.Index, area.Title);
+                                            dispatch(message);
                                         }),
                                         DispatcherPriority.Background);
                                 })
@@ -249,13 +313,16 @@ namespace Wpf.Elmish.Sample
         {
             var locations = area
                 .Coordinates
-                .Select(p => new Location(p.Coordinate.Latitude, p.Coordinate.Longitude));
+                .Select(p => p.Coordinate.ToLocation());
 
             var areaCenter = GetCenter(new[] { area });
 
             var color = area.IsSelected ? Colors.OrangeRed : Colors.PaleVioletRed;
 
-            yield return VNode.Create<MapPolygon>()
+            var node = area.IsDefined
+                ? VNode.Create<MapShapeBase, MapPolygon>()
+                : VNode.Create<MapShapeBase, MapPolyline>();
+            yield return node
                 .Set(p => p.Stroke, new SolidColorBrush(color))
                 .Set(p => p.StrokeThickness, 3)
                 .Set(p => p.StrokeLineJoin, PenLineJoin.Round)
@@ -270,7 +337,7 @@ namespace Wpf.Elmish.Sample
                     .Set(q => q.Height, edgeWidth)
                     .Set(q => q.Fill, new SolidColorBrush(color))
                     .Set(q => q.Opacity, 0.9)
-                    .Attach(MapLayer.PositionProperty, new Location(p.Coordinate.Latitude, p.Coordinate.Longitude))
+                    .Attach(MapLayer.PositionProperty, p.Coordinate.ToLocation())
                     .Attach(MapLayer.PositionOffsetProperty, new Point(-edgeWidth / 2.0, -edgeWidth / 2.0))
                     .Subscribe(q =>
                     {
@@ -288,7 +355,7 @@ namespace Wpf.Elmish.Sample
                                     new Message.MoveLocationMessage(
                                         areaIndex,
                                         locationIndex,
-                                        new Coordinate(location.Latitude, location.Longitude)
+                                        location.ToCoordinate()
                                     )
                                 )
                                 .Subscribe(m => dispatch(m))
@@ -310,7 +377,7 @@ namespace Wpf.Elmish.Sample
             }
 
             yield return VNode.Create<Pushpin>()
-                .Set(p => p.Location, new Location(areaCenter.Latitude, areaCenter.Longitude))
+                .Set(p => p.Location, areaCenter.ToLocation())
                 .Set(p => p.Content, area.Note.Substring(0, 1))
                 .Attach(ToolTipService.ToolTipProperty, area.Note);
         }
@@ -339,7 +406,7 @@ namespace Wpf.Elmish.Sample
                             var distance = Vector2.Distance(pointVector, nearestPoint);
                             var newPoint = new Point(point1.X + nearestPoint.X, point1.Y + nearestPoint.Y);
                             var newLocation = map.ViewportPointToLocation(newPoint);
-                            var newCoordinate = new Coordinate(newLocation.Latitude, newLocation.Longitude);
+                            var newCoordinate = newLocation.ToCoordinate();
 
                             return new { AreaIndex = polygonIndex, CoordinateIndex = i + 1, Distance = distance, Coordinate = newCoordinate };
                         });

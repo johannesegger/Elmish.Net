@@ -30,7 +30,7 @@ namespace Wpf.Elmish
             _createOrUpdate = createOrUpdate;
         }
 
-        IResourceDisposable IVNode.Materialize(Option<object> node) => Materialize(node.OfType<T>());
+        IResourceDisposable IVNode.Materialize(Option<object> node) => Materialize(node.TryCast<T>());
         public IResourceDisposable<T> Materialize(Option<T> node) => _createOrUpdate(node);
     }
 
@@ -46,7 +46,7 @@ namespace Wpf.Elmish
             where TBase : DependencyObject
             where TImpl : TBase, new()
         {
-            return new VNode<TBase>(node => ResourceDisposable.Create(node.IfNone(() => new TImpl())));
+            return new VNode<TBase>(node => ResourceDisposable.Create(node.TryCast<TImpl>().IfNone(() => new TImpl())));
         }
     }
 
@@ -110,7 +110,7 @@ namespace Wpf.Elmish
         public static IVNode<T> SetCollection<T>(
             this IVNode<T> vNode,
             Expression<Func<T, IList>> propertyExpression,
-            params IVNode[] children)
+            IEnumerable<IVNode> children)
         {
             var getter = propertyExpression.Compile();
             return new VNode<T>(node =>
@@ -122,11 +122,12 @@ namespace Wpf.Elmish
                 var o = vNode.Materialize(node);
                 var newCollection = getter(o.Resource);
                 var materializedChildren = new CompositeDisposable();
-                for (var i = 0; i < children.Length; i++)
+                var i = 0;
+                foreach (var child in children)
                 {
                     var oldItem = oldCollection.Count > i ? Some(oldCollection[i]) : None;
 
-                    var newItem = children[i]
+                    var newItem = child
                         .Materialize(oldItem)
                         .DisposeWith(materializedChildren)
                         .Resource;
@@ -150,11 +151,12 @@ namespace Wpf.Elmish
                     {
                         newCollection.Add(newItem);
                     }
+                    i++;
                 }
 
-                for (var i = oldCollection.Count - 1; i >= children.Length; i--)
+                for (var j = oldCollection.Count - 1; j >= i; j--)
                 {
-                    oldCollection.RemoveAt(i);
+                    oldCollection.RemoveAt(j);
                 }
 
                 return o.AddDisposable(materializedChildren);
@@ -164,15 +166,15 @@ namespace Wpf.Elmish
         public static IVNode<T> SetCollection<T>(
             this IVNode<T> node,
             Expression<Func<T, IList>> propertyExpression,
-            IEnumerable<IVNode> children)
+            params IVNode[] children)
         {
-            return node.SetCollection(propertyExpression, children.ToArray());
+            return node.SetCollection(propertyExpression, children.AsEnumerable());
         }
 
         public static IVNode<T> SetCollection<T>(
             this IVNode<T> vNode,
             Expression<Func<T, IEnumerable>> propertyExpression,
-            params object[] children)
+            IEnumerable<object> children)
         {
             var getter = propertyExpression.Compile();
             var setter = propertyExpression.CreateSetter();
@@ -185,7 +187,10 @@ namespace Wpf.Elmish
             {
                 var o = vNode.Materialize(node);
                 var newCollection = getter(o.Resource);
-                setter(o.Resource, children);
+                if (newCollection == null || !newCollection.Cast<object>().SequenceEqual(children))
+                {
+                    setter(o.Resource, children);
+                }
                 return o;
             });
         }
@@ -193,15 +198,15 @@ namespace Wpf.Elmish
         public static IVNode<T> SetCollection<T>(
             this IVNode<T> node,
             Expression<Func<T, IEnumerable>> propertyExpression,
-            IEnumerable<object> children)
+            params object[] children)
         {
-            return node.SetCollection(propertyExpression, children.ToArray());
+            return node.SetCollection(propertyExpression, children.AsEnumerable());
         }
 
         public static IVNode<T> SetCollection<T>(
             this IVNode<T> vNode,
             Expression<Func<T, IList>> propertyExpression,
-            params object[] children)
+            IEnumerable<object> children)
         {
             var getter = propertyExpression.Compile();
             var setter = propertyExpression.CreateSetter();
@@ -209,16 +214,18 @@ namespace Wpf.Elmish
             {
                 var o = vNode.Materialize(node);
                 var newCollection = getter(o.Resource);
-                for (var i = 0; i < children.Length; i++)
+                var i = 0;
+                foreach (var child in children)
                 {
                     if (newCollection.Count <= i)
                     {
-                        newCollection.Add(children[i]);
+                        newCollection.Add(child);
                     }
-                    else if (!Equals(newCollection[i], children[i]))
+                    else if (!Equals(newCollection[i], child))
                     {
-                        newCollection[i] = children[i];
+                        newCollection[i] = child;
                     }
+                    i++;
                 }
 
                 return o;
@@ -228,9 +235,9 @@ namespace Wpf.Elmish
         public static IVNode<T> SetCollection<T>(
             this IVNode<T> node,
             Expression<Func<T, IList>> propertyExpression,
-            IEnumerable<object> children)
+            params object[] children)
         {
-            return node.SetCollection(propertyExpression, children.ToArray());
+            return node.SetCollection(propertyExpression, children.AsEnumerable());
         }
 
         public static IVNode<T> Subscribe<T>(
