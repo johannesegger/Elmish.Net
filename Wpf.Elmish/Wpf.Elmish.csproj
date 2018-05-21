@@ -3,6 +3,17 @@
     <OutputType>Library</OutputType>
     <TargetFramework>net471</TargetFramework>
   </PropertyGroup>
+    
+  <PropertyGroup>
+    <Title>Wpf.Elmish</Title>
+    <Authors>JEgger</Authors>
+    <Description>Elm architecture for WPF apps. 100% less XAML.</Description>
+    <PackageLicenseUrl>https://github.com/johannesegger/Wpf.Elmish/blob/master/LICENSE</PackageLicenseUrl>
+    <PackageProjectUrl>https://github.com/johannesegger/Wpf.Elmish</PackageProjectUrl>
+    <PackageTags>Wpf;Elm;Elmish</PackageTags>
+    <IncludeSymbols>true</IncludeSymbols>
+    <RepositoryUrl>https://github.com/johannesegger/Wpf.Elmish</RepositoryUrl>
+  </PropertyGroup>
   
   <ItemGroup>
     <PackageReference Include="LanguageExt.Core" Version="3.0.1" />
@@ -14,8 +25,6 @@
   <ItemGroup>
     <Reference Include="PresentationCore" />
     <Reference Include="PresentationFramework" />
-    <Reference Include="System.Xaml" />
-    <Reference Include="WindowsBase" />
   </ItemGroup>
 
   <ItemGroup>
