@@ -7,15 +7,17 @@ namespace Wpf.Elmish
     public class State
     {
         public static readonly State Empty =
-            new State(0, new Coordinate(0, 0), new Area[0]);
+            new State("My map", 0, new Coordinate(0, 0), new Area[0]);
 
-        public State(double mapZoomLevel, Coordinate center, IEnumerable<Area> areas)
+        public State(string title, double mapZoomLevel, Coordinate center, IEnumerable<Area> areas)
         {
+            Title = title;
             MapZoomLevel = mapZoomLevel;
             Center = center ?? throw new ArgumentNullException(nameof(center));
             Areas = areas?.ToImmutableList() ?? throw new ArgumentNullException(nameof(areas));
         }
 
+        public string Title { get; }
         public double MapZoomLevel { get; }
         public Coordinate Center { get; }
         public ImmutableList<Area> Areas { get; }

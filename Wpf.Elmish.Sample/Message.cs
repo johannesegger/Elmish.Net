@@ -3,6 +3,7 @@
 namespace Wpf.Elmish
 {
     public abstract class Message : OneOfBase<
+        Message.SetTitleMessage,
         Message.BeginMoveLocationMessage,
         Message.MoveLocationMessage,
         Message.EndMoveLocationMessage,
@@ -15,6 +16,16 @@ namespace Wpf.Elmish
         Message.EndDefineAreaMessage,
         Message.ChangeMapViewMessage>
     {
+        public class SetTitleMessage : Message
+        {
+            public SetTitleMessage(string title)
+            {
+                Title = title;
+            }
+
+            public string Title { get; }
+        }
+
         public class MoveLocationMessage : Message
         {
             public MoveLocationMessage(int areaIndex, int coordinateIndex, Coordinate coordinate)

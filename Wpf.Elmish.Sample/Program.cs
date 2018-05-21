@@ -9,6 +9,7 @@ using System.Reactive.Disposables;
 using System.Reactive.Linq;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Data;
 using System.Windows.Media;
 using System.Windows.Shapes;
@@ -52,6 +53,8 @@ namespace Wpf.Elmish.Sample
         public MainWindow()
         {
             Title = "Hello, XAML-free WPF";
+            Width = 1024;
+            Height = 768;
 
             ElmishApp.Run(Init(), Update, View, () => Content);
         }
@@ -74,6 +77,11 @@ namespace Wpf.Elmish.Sample
         private static (State, Cmd<Message>) Update(Message message, State state)
         {
             return message.Match(
+                (Message.SetTitleMessage m) =>
+                {
+                    var newState = state.Set(p => p.Title, m.Title);
+                    return (newState, Cmd.None<Message>());
+                },
                 (Message.BeginMoveLocationMessage m) =>
                 {
                     var newState = state.Set(p => p.Areas[m.AreaIndex].Coordinates[m.CoordinateIndex].IsDragging, true);
@@ -162,6 +170,22 @@ namespace Wpf.Elmish.Sample
             return VNode.Create<StackPanel>()
                 .SetCollection(
                     p => p.Children,
+                    VNode.Create<UniformGrid>()
+                        .Set(p => p.Columns, 2)
+                        .SetCollection(
+                            p => p.Children,
+                            VNode.Create<TextBox>()
+                                .Set(p => p.Text, state.Title)
+                                .Subscribe(p => p
+                                    .TextChangedObservable()
+                                    .Subscribe(e => dispatch(new Message.SetTitleMessage(p.Text)))
+                                ),
+                            VNode.Create<TextBlock>()
+                                .Set(p => p.Text, $"Map title: {state.Title}")
+                                .Set(p => p.Margin, new Thickness(5, 0, 5, 0))
+                                .Set(p => p.VerticalAlignment, VerticalAlignment.Center)
+                                .Attach(UniformGrid.ColumnsProperty, 1)
+                        ),
                     VNode.Create<WpfMap>()
                         .Set(
                             p => p.CredentialsProvider,
