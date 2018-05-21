@@ -1,0 +1,139 @@
+﻿<#@ template debug="false" hostspecific="false" language="C#" #>
+<#@ assembly name="System.Core" #>
+<#@ assembly name="PresentationCore" #>
+<#@ assembly name="PresentationFramework" #>
+<#@ import namespace="System.Linq" #>
+<#@ import namespace="System.Text" #>
+<#@ import namespace="System.Text.RegularExpressions" #>
+<#@ import namespace="System.Collections.Generic" #>
+<#@ import namespace="System.Reflection" #>
+<#@ import namespace="System.Windows" #>
+<#@ output extension=".cs" #>
+using System.Reactive.Linq;
+
+namespace Wpf.Elmish.Net
+{
+<#
+var types = new[] { typeof(UIElement).Assembly, typeof(FrameworkElement).Assembly }
+    .SelectMany(p => p.ExportedTypes)
+    .Where(typeof(DependencyObject).IsAssignableFrom)
+    .Select(p => new
+    {
+        Type = p,
+        Events = p
+            .GetEvents()
+            .Where(e => e.DeclaringType.Equals(p))
+            .Where(e => e != typeof(System.Windows.Interop.HwndHost).GetEvent(nameof(System.Windows.Interop.HwndHost.MessageHook)))
+    })
+    .Where(p => p.Events.Any())
+    .ToList();
+
+foreach (var o in types)
+{
+#>
+    public static class <#= RemoveGenericArity(o.Type.Name) #>Extensions
+    {
+<#
+    foreach (var evt in o.Events)
+    {
+        var eventHandlerParameters = evt
+            .EventHandlerType
+            .GetMethod(nameof(EventHandler.Invoke))
+            .GetParameters();
+        var isEventPattern = eventHandlerParameters.Length == 2 &&
+            eventHandlerParameters[0].ParameterType == typeof(object);
+        if (isEventPattern)
+        {
+            var isCommonEventHandler =
+                evt.EventHandlerType.IsGenericType &&
+                evt.EventHandlerType.GetGenericTypeDefinition() == typeof(EventHandler<>);
+
+            var eventArgsType = eventHandlerParameters[1].ParameterType;
+            var eventArgsTypeName = GetTypeName(eventArgsType);
+            var eventHandlerTypeName = GetTypeName(evt.EventHandlerType);
+            var fromEventPatternGenericArgs = isCommonEventHandler ?
+                eventArgsType.FullName :
+                $"{eventHandlerTypeName}, {eventArgsTypeName}";
+
+            var isStaticEvent = evt.GetAddMethod().IsStatic;
+
+            var arguments = isStaticEvent ?
+                "" :
+                $"this {GetTypeName(o.Type)} element";
+
+            var eventObject = isStaticEvent ?
+                GetTypeName(o.Type) :
+                "element";
+#>
+        public static System.IObservable<System.Reactive.EventPattern<<#= eventArgsTypeName #>>> <#=evt.Name#>Observable<#= GetGenericParameters(eventArgsType) #>(<#= arguments #>)
+        {
+            return Observable
+                .FromEventPattern<<#= fromEventPatternGenericArgs #>>(
+                    h => <#= eventObject #>.<#= evt.Name #> += h,
+                    h => <#= eventObject #>.<#= evt.Name #> -= h
+                );
+        }
+<#
+        }
+        else
+        {
+            throw new Exception($"Can't generate observable from {o.Type.FullName}.{evt.Name}.");
+        }
+    }
+#>
+    }
+<#
+}
+#>
+}
+<#+
+private string GetTypeName(Type type)
+{
+    string typeName;
+    if (type.IsGenericParameter)
+    {
+        typeName = type.Name;
+    }
+    else if (type.IsGenericType)
+    {
+        typeName = type.GetGenericTypeDefinition().FullName;
+    }
+    else
+    {
+        typeName = type.FullName;
+    }
+
+    typeName = Regex.Replace(typeName, @"`\d+", "");
+    
+    return $"{typeName}{GetGenericArguments(type)}";
+}
+private string GetGenericArguments(Type type)
+{
+    if (!type.IsGenericType)
+    {
+        return "";
+    }
+
+    var genericArguments = type
+        .GetGenericArguments()
+        .Select(arg => arg.ToString());
+    return $"<{string.Join(", ", genericArguments)}>";
+}
+private string GetGenericParameters(Type type)
+{
+    if (!type.ContainsGenericParameters)
+    {
+        return "";
+    }
+
+    var genericArguments = type
+        .GetGenericArguments()
+        .Where(p => p.IsGenericParameter)
+        .Select(arg => arg.ToString());
+    return $"<{string.Join(", ", genericArguments)}>";
+}
+private string RemoveGenericArity(string name)
+{
+    return Regex.Replace(name, @"`\d+", "");
+}
+#>

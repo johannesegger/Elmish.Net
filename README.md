@@ -1,2 +1,2 @@
-# Wpf.Elmish
-Elm architecture for WPF apps. 100% less XAML.
+# Elmish.Net
+Elm architecture for .NET apps. 100% less XAML.

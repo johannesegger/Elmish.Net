@@ -3,5 +3,7 @@ Param(
 )
 
 Push-Location $PSScriptRoot
-dotnet pack Wpf.Elmish /p:Version=$version /p:PackageOutputPath=$pwd
+$outputPath = "$pwd\dist"
+dotnet pack Elmish.Net /p:Version=$version /p:PackageOutputPath=$outputPath
+dotnet pack Wpf.Elmish.Net /p:Version=$version /p:PackageOutputPath=$outputPath
 Pop-Location

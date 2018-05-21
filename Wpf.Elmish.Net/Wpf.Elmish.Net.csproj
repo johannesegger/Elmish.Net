@@ -1,0 +1,44 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net471</TargetFramework>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <Title>Wpf.Elmish.Net</Title>
+    <Authors>JEgger</Authors>
+    <Description>Elm architecture for WPF apps. 100% less XAML.</Description>
+    <PackageLicenseUrl>https://github.com/johannesegger/Elmish.Net/blob/master/LICENSE</PackageLicenseUrl>
+    <PackageProjectUrl>https://github.com/johannesegger/Elmish.Net</PackageProjectUrl>
+    <PackageTags>Wpf;Elm;Elmish</PackageTags>
+    <IncludeSymbols>true</IncludeSymbols>
+    <RepositoryUrl>https://github.com/johannesegger/Elmish.Net</RepositoryUrl>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Update="DependencyObjectEventsAsObservable.tt">
+      <Generator>TextTemplatingFileGenerator</Generator>
+      <LastGenOutput>DependencyObjectEventsAsObservable.cs</LastGenOutput>
+    </None>
+  </ItemGroup>
+
+  <ItemGroup>
+    <Service Include="{508349b6-6b84-4df5-91f0-309beebad82d}" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Update="DependencyObjectEventsAsObservable.cs">
+      <DesignTime>True</DesignTime>
+      <AutoGen>True</AutoGen>
+      <DependentUpon>DependencyObjectEventsAsObservable.tt</DependentUpon>
+    </Compile>
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="PresentationCore" />
+    <Reference Include="PresentationFramework" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Elmish.Net\Elmish.Net.csproj" />
+  </ItemGroup>
+</Project>
