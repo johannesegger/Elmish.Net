@@ -25,6 +25,7 @@ namespace Elmish.Net
             var setter = rootNode.CreateSetter();
 
             var viewSubscriptionsDisposable = new SerialDisposable();
+            var commandDisposable = new SerialDisposable();
             messageSubject
                 .Scan(init, (updateResult, message) => update(message, updateResult.State))
                 .StartWith(init)
@@ -44,7 +45,9 @@ namespace Elmish.Net
                         setter(newContent.Resource);
                     }
 
-                    p.Cmd.Subs.ForEach(sub => sub(dispatch));
+                    var cancellationDisposable = new CancellationDisposable();
+                    commandDisposable.Disposable = cancellationDisposable;
+                    p.Cmd.Subs.ForEach(sub => sub(dispatch, cancellationDisposable.Token));
                 });
         }
     }

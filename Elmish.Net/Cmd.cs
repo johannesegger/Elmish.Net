@@ -1,13 +1,14 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace Elmish.Net
 {
     public delegate void Dispatch<in TMessage>(TMessage message);
 
-    public delegate void Sub<out TMessage>(Dispatch<TMessage> dispatch);
+    public delegate void Sub<out TMessage>(Dispatch<TMessage> dispatch, CancellationToken ct);
 
     public class Cmd<TMessage>
     {
@@ -33,7 +34,7 @@ namespace Elmish.Net
 
         public static Cmd<TMessage> OfMsg<TMessage>(TMessage message)
         {
-            return OfSub<TMessage>(dispatch => dispatch(message));
+            return OfSub<TMessage>((dispatch, _) => dispatch(message));
         }
 
         public static Cmd<TMessage> Batch<TMessage>(IEnumerable<Cmd<TMessage>> cmds)
@@ -47,15 +48,15 @@ namespace Elmish.Net
         }
 
         public static Cmd<TMessage> OfAsync<TResult, TMessage>(
-            Func<Task<TResult>> action,
+            Func<CancellationToken, Task<TResult>> action,
             Func<TResult, TMessage> ofSuccess,
             Func<Exception, TMessage> ofError)
         {
-            async void Sub(Dispatch<TMessage> dispatch)
+            async void Sub(Dispatch<TMessage> dispatch, CancellationToken ct)
             {
                 try
                 {
-                    dispatch(ofSuccess(await action()));
+                    dispatch(ofSuccess(await action(ct)));
                 }
                 catch (Exception e)
                 {
@@ -67,15 +68,15 @@ namespace Elmish.Net
         }
 
         public static Cmd<TMessage> OfAsync<TMessage>(
-            Func<Task> action,
+            Func<CancellationToken, Task> action,
             TMessage success,
             Func<Exception, TMessage> ofError)
         {
-            async void Sub(Dispatch<TMessage> dispatch)
+            async void Sub(Dispatch<TMessage> dispatch, CancellationToken ct)
             {
                 try
                 {
-                    await action();
+                    await action(ct);
                     dispatch(success);
                 }
                 catch (Exception e)
