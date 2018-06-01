@@ -142,12 +142,12 @@ namespace Elmish.Net
             return false;
         }
 
-        public static T Set<T, TProp>(this T root, Expression<Func<T, TProp>> expr, TProp value)
+        public static T With<T, TProp>(this T root, Expression<Func<T, TProp>> expr, TProp value)
         {
             return expr.CreateImmutableSetter()(root, value);
         }
 
-        public static T Set<T, TProp>(this T root, Expression<Func<T, TProp>> expr, Func<T, TProp> fn)
+        public static T With<T, TProp>(this T root, Expression<Func<T, TProp>> expr, Func<T, TProp> fn)
         {
             return expr.CreateImmutableSetter()(root, fn(root));
         }

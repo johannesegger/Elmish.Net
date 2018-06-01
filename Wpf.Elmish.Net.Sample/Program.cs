@@ -50,9 +50,9 @@ namespace Wpf.Elmish.Net.Sample
                     .Add(Area.Create(new[] { DraggableCoordinate.Create(47.946927, 13.777057), DraggableCoordinate.Create(47.947813, 13.776992), DraggableCoordinate.Create(47.948885, 13.780077), DraggableCoordinate.Create(47.948237, 13.780352) }, "Galler"));
             var initialState = State
                 .Empty
-                .Set(p => p.Areas, areas)
-                .Set(p => p.MapZoomLevel, 15)
-                .Set(p => p.Center, GetCenter(areas));
+                .With(p => p.Areas, areas)
+                .With(p => p.MapZoomLevel, 15)
+                .With(p => p.Center, GetCenter(areas));
             return (initialState, Cmd.None<Message>());
         }
 
@@ -61,27 +61,27 @@ namespace Wpf.Elmish.Net.Sample
             return message.Match(
                 (Message.SetTitleMessage m) =>
                 {
-                    var newState = state.Set(p => p.Title, m.Title);
+                    var newState = state.With(p => p.Title, m.Title);
                     return (newState, Cmd.None<Message>());
                 },
                 (Message.BeginMoveLocationMessage m) =>
                 {
-                    var newState = state.Set(p => p.Areas[m.AreaIndex].Coordinates[m.CoordinateIndex].IsDragging, true);
+                    var newState = state.With(p => p.Areas[m.AreaIndex].Coordinates[m.CoordinateIndex].IsDragging, true);
                     return (newState, Cmd.None<Message>());
                 },
                 (Message.MoveLocationMessage m) =>
                 {
-                    var newState = state.Set(p => p.Areas[m.AreaIndex].Coordinates[m.CoordinateIndex].Coordinate, m.Coordinate);
+                    var newState = state.With(p => p.Areas[m.AreaIndex].Coordinates[m.CoordinateIndex].Coordinate, m.Coordinate);
                     return (newState, Cmd.None<Message>());
                 },
                 (Message.EndMoveLocationMessage m) =>
                 {
-                    var newState = state.Set(p => p.Areas[m.AreaIndex].Coordinates[m.CoordinateIndex].IsDragging, false);
+                    var newState = state.With(p => p.Areas[m.AreaIndex].Coordinates[m.CoordinateIndex].IsDragging, false);
                     return (newState, Cmd.None<Message>());
                 },
                 (Message.InsertLocationMessage m) =>
                 {
-                    var newState = state.Set(
+                    var newState = state.With(
                         p => p.Areas[m.AreaIndex].Coordinates,
                         state.Areas[m.AreaIndex].Coordinates.Insert(m.CoordinateIndex, new DraggableCoordinate(m.Coordinate, false))
                     );
@@ -89,7 +89,7 @@ namespace Wpf.Elmish.Net.Sample
                 },
                 (Message.RemoveLocationMessage m) =>
                 {
-                    var newState = state.Set(
+                    var newState = state.With(
                         p => p.Areas[m.AreaIndex].Coordinates,
                         state.Areas[m.AreaIndex].Coordinates.RemoveAt(m.CoordinateIndex)
                     );
@@ -99,21 +99,21 @@ namespace Wpf.Elmish.Net.Sample
                 {
                     Area Update(Area area, int index)
                     {
-                        return area.Set(p => p.IsSelected, index == m.AreaIndex);
+                        return area.With(p => p.IsSelected, index == m.AreaIndex);
                     }
 
-                    var newState = state.Set(p => p.Areas, state.Areas.Select(Update));
+                    var newState = state.With(p => p.Areas, state.Areas.Select(Update));
                     return (newState, Cmd.None<Message>());
                 },
                 (Message.UpdateAreaTitleMessage m) =>
                 {
-                    var newState = state.Set(p => p.Areas[m.AreaIndex].Note, m.Title);
+                    var newState = state.With(p => p.Areas[m.AreaIndex].Note, m.Title);
                     return (newState, Cmd.None<Message>());
                 },
                 (Message.AddAreaMessage m) =>
                 {
                     var newArea = new Area(Enumerable.Empty<DraggableCoordinate>(), m.Title, isSelected: false, isDefined: false);
-                    var newState = state.Set(p => p.Areas, state.Areas.Add(newArea));
+                    var newState = state.With(p => p.Areas, state.Areas.Add(newArea));
                     var newAreaIndex = newState.Areas.Count - 1;
                     var cmd = Cmd.Batch(
                         Cmd.OfMsg<Message>(new Message.SelectAreaMessage(newAreaIndex)),
@@ -125,22 +125,22 @@ namespace Wpf.Elmish.Net.Sample
                 {
                     Area Update(Area area, int index)
                     {
-                        return area.Set(p => p.IsDefined, index != m.AreaIndex);
+                        return area.With(p => p.IsDefined, index != m.AreaIndex);
                     }
 
-                    var newState = state.Set(p => p.Areas, state.Areas.Select(Update));
+                    var newState = state.With(p => p.Areas, state.Areas.Select(Update));
                     return (newState, Cmd.None<Message>());
                 },
                 (Message.EndDefineAreaMessage m) =>
                 {
-                    var newState = state.Set(p => p.Areas[m.AreaIndex].IsDefined, true);
+                    var newState = state.With(p => p.Areas[m.AreaIndex].IsDefined, true);
                     return (newState, Cmd.None<Message>());
                 },
                 (Message.ChangeMapViewMessage m) =>
                 {
                     var newState = state
-                        .Set(p => p.MapZoomLevel, m.ZoomLevel)
-                        .Set(p => p.Center, m.Center);
+                        .With(p => p.MapZoomLevel, m.ZoomLevel)
+                        .With(p => p.Center, m.Center);
                     return (newState, Cmd.None<Message>());
                 });
         }
