@@ -9,7 +9,7 @@
             "type": "coreclr",
             "request": "launch",
             "preLaunchTask": "build",
-            "program": "${workspaceFolder}/Wpf.NoXaml/bin/Debug/net471/Wpf.NoXaml.exe",
+            "program": "${workspaceFolder}/Wpf.Elmish.Net.Sample/bin/Debug/net471/Wpf.Elmish.Net.Sample.exe",
             "args": [],
             "cwd": "${workspaceFolder}",
             "console": "internalConsole",
