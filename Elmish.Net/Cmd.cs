@@ -8,7 +8,7 @@ namespace Elmish.Net
 {
     public delegate void Dispatch<in TMessage>(TMessage message);
 
-    public delegate void Sub<out TMessage>(Dispatch<TMessage> dispatch, CancellationToken ct);
+    public delegate void Sub<out TMessage>(Dispatch<TMessage> dispatch);
 
     public class Cmd<TMessage>
     {
@@ -34,7 +34,7 @@ namespace Elmish.Net
 
         public static Cmd<TMessage> OfMsg<TMessage>(TMessage message)
         {
-            return OfSub<TMessage>((dispatch, _) => dispatch(message));
+            return OfSub<TMessage>(dispatch => dispatch(message));
         }
 
         public static Cmd<TMessage> Batch<TMessage>(IEnumerable<Cmd<TMessage>> cmds)
@@ -48,15 +48,15 @@ namespace Elmish.Net
         }
 
         public static Cmd<TMessage> OfAsync<TResult, TMessage>(
-            Func<CancellationToken, Task<TResult>> action,
+            Func<Task<TResult>> action,
             Func<TResult, TMessage> ofSuccess,
             Func<Exception, TMessage> ofError)
         {
-            async void Sub(Dispatch<TMessage> dispatch, CancellationToken ct)
+            async void Sub(Dispatch<TMessage> dispatch)
             {
                 try
                 {
-                    dispatch(ofSuccess(await action(ct)));
+                    dispatch(ofSuccess(await action()));
                 }
                 catch (Exception e)
                 {
@@ -68,15 +68,15 @@ namespace Elmish.Net
         }
 
         public static Cmd<TMessage> OfAsync<TMessage>(
-            Func<CancellationToken, Task> action,
+            Func<Task> action,
             TMessage success,
             Func<Exception, TMessage> ofError)
         {
-            async void Sub(Dispatch<TMessage> dispatch, CancellationToken ct)
+            async void Sub(Dispatch<TMessage> dispatch)
             {
                 try
                 {
-                    await action(ct);
+                    await action();
                     dispatch(success);
                 }
                 catch (Exception e)

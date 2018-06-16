@@ -18,7 +18,8 @@ namespace Elmish.Net
             IScheduler dispatcherScheduler,
             Expression<Func<TViewNode>> rootNode)
         {
-            var messageSubject = new Subject<IObservable<TMessage>>();
+            var messageSubject = new Subject<TMessage>();
+            Dispatch<TMessage> dispatch = messageSubject.OnNext;
 
             var getter = rootNode.Compile();
             var setter = rootNode.CreateSetter();
@@ -29,21 +30,11 @@ namespace Elmish.Net
             var initSubject = new Subject<(TState State, Cmd<TMessage> Cmd)>();
 
             var obs = messageSubject
-                .Switch()
                 .Scan(init, (updateResult, message) => update(message, updateResult.State))
                 .Merge(initSubject)
                 .ObserveOn(dispatcherScheduler)
                 .Subscribe(updateResult =>
                 {
-                    var dispatchSubject = new Subject<TMessage>();
-                    messageSubject.OnNext(dispatchSubject);
-
-                    // TODO find a way to unify cancellation of
-                    // * subscription to dispatchSubject (canceled with `Switch` at the top of the statement)
-                    // * View subscriptions
-                    // * Cancellation token for command execution
-
-                    Dispatch<TMessage> dispatch = dispatchSubject.OnNext;
                     var viewResult = view(updateResult.State, dispatch);
 
                     var oldContent = getter();
@@ -54,9 +45,7 @@ namespace Elmish.Net
                         setter(newContent.Resource);
                     }
 
-                    var cancellationDisposable = new CancellationDisposable();
-                    commandDisposable.Disposable = cancellationDisposable;
-                    updateResult.Cmd.Subs.ForEach(sub => sub(dispatch, cancellationDisposable.Token));
+                    updateResult.Cmd.Subs.ForEach(sub => sub(dispatch));
                 });
 
             // Wait for the first item to be published until the subscription is fully set up.
