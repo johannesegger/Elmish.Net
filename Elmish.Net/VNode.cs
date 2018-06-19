@@ -7,6 +7,7 @@ using System.Reactive.Disposables;
 using LanguageExt;
 using Elmish.Net.Utils;
 using static LanguageExt.Prelude;
+using System.Collections.Concurrent;
 
 namespace Elmish.Net
 {
@@ -44,14 +45,16 @@ namespace Elmish.Net
 
     public static class VNodeExtensions
     {
+        private static readonly PropertyExpressionCache propertyExpressionCache =
+            new PropertyExpressionCache();
+
         private static IVNode<T> Set<T, TProp>(
             this IVNode<T> vNode,
             Expression<Func<T, TProp>> propertyExpression,
             Func<Option<TProp>, IResourceDisposable<TProp>> getValue,
             IEqualityComparer<TProp> equalityComparer)
         {
-            var getter = propertyExpression.Compile();
-            var setter = propertyExpression.CreateSetter();
+            var (getter, setter) = propertyExpressionCache.Lookup(propertyExpression);
             return new VNode<T>(node =>
             {
                 var o = vNode.Materialize(node);
@@ -104,7 +107,7 @@ namespace Elmish.Net
             Expression<Func<T, IList>> propertyExpression,
             IEnumerable<IVNode> children)
         {
-            var getter = propertyExpression.Compile();
+            var (getter, _) = propertyExpressionCache.Lookup(propertyExpression);
             return new VNode<T>(node =>
             {
                 var oldCollection = node
@@ -168,8 +171,7 @@ namespace Elmish.Net
             Expression<Func<T, IEnumerable>> propertyExpression,
             IEnumerable<object> children)
         {
-            var getter = propertyExpression.Compile();
-            var setter = propertyExpression.CreateSetter();
+            var (getter, setter) = propertyExpressionCache.Lookup(propertyExpression);
             if (setter == null)
             {
                 throw new Exception($"Setter must not be null. Type: {typeof(T).FullName}, Property: {propertyExpression}");
@@ -200,8 +202,7 @@ namespace Elmish.Net
             Expression<Func<T, IList>> propertyExpression,
             IEnumerable<object> children)
         {
-            var getter = propertyExpression.Compile();
-            var setter = propertyExpression.CreateSetter();
+            var (getter, setter) = propertyExpressionCache.Lookup(propertyExpression);
             return new VNode<T>(node =>
             {
                 var o = vNode.Materialize(node);
