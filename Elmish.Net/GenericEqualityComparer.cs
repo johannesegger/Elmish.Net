@@ -16,11 +16,15 @@ namespace Elmish.Net
 
         public bool Equals(T x, T y)
         {
+            if (ReferenceEquals(x, y)) return true;
+            if (ReferenceEquals(x, null)) return false;
+            if (ReferenceEquals(y, null)) return false;
             return this.equals(x, y);
         }
 
         public int GetHashCode(T obj)
         {
+            if (ReferenceEquals(obj, null)) return 0;
             return this.getHashCode(obj);
         }
     }
