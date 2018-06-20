@@ -106,16 +106,14 @@ namespace Elmish.Net
                 EqualityComparer<TProp>.Default);
         }
 
-        public static IVNode<T> SetConstant<T, TProp>(
+        public static IVNode<T> SetConstant<T>(
             this IVNode<T> vNode,
-            Expression<Func<T, TProp>> propertyExpression,
-            TProp newValue)
+            Action<T> setter)
         {
-            var (getter, setter) = propertyExpressionCache.Lookup(propertyExpression);
             return new VNode<T>(node =>
             {
                 var o = vNode.Materialize(node);
-                node.Match(n => {}, () => setter(o.Resource, newValue));
+                node.Match(n => {}, () => setter(o.Resource));
                 return o;
             });
         }
