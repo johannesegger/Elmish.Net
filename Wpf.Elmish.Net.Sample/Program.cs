@@ -150,23 +150,23 @@ namespace Wpf.Elmish.Net.Sample
             const double tolerancePixels = 10;
 
             return WpfVNode.Create<MetroWindow>()
-                .Set(p => p.Visibility, Visibility.Visible)
+                .SetConstant(p => p.Visibility, Visibility.Visible)
                 .Set(p => p.Title, $"Wpf.Elmish.Net.Sample - {state.Title}")
-                .Set(p => p.Width, 1024)
-                .Set(p => p.Height, 768)
+                .SetConstant(p => p.Width, 1024)
+                .SetConstant(p => p.Height, 768)
                 .Set(
                     p => p.Content,
                     WpfVNode.Create<StackPanel>()
                         .SetCollection(
                             p => p.Children,
                             WpfVNode.Create<StackPanel>()
-                                .Set(p => p.Orientation, Orientation.Horizontal)
+                                .SetConstant(p => p.Orientation, Orientation.Horizontal)
                                 .SetCollection(
                                     p => p.Children,
                                     WpfVNode.Create<TextBlock>()
-                                        .Set(p => p.Text, "Map title: ")
-                                        .Set(p => p.Margin, new Thickness(5, 0, 5, 0))
-                                        .Set(p => p.VerticalAlignment, VerticalAlignment.Center),
+                                        .SetConstant(p => p.Text, "Map title: ")
+                                        .SetConstant(p => p.Margin, new Thickness(5, 0, 5, 0))
+                                        .SetConstant(p => p.VerticalAlignment, VerticalAlignment.Center),
                                     WpfVNode.Create<TextBox>()
                                         .Set(p => p.Text, state.Title)
                                         .Subscribe(p => p
@@ -175,15 +175,14 @@ namespace Wpf.Elmish.Net.Sample
                                         )
                                 ),
                             WpfVNode.Create<WpfMap>()
-                                .Set(
+                                .SetConstant(
                                     p => p.CredentialsProvider,
-                                    new ApplicationIdCredentialsProvider("AiYVQeyKth-2j8dkcIPe58rz3zxNt6Hw-ydHJhZLfklNfZPrWM9HlBr6LTnIgy65"),
-                                    EqualityComparer.Create((CredentialsProvider p) => ((ApplicationIdCredentialsProvider)p).ApplicationId))
+                                    new ApplicationIdCredentialsProvider("AiYVQeyKth-2j8dkcIPe58rz3zxNt6Hw-ydHJhZLfklNfZPrWM9HlBr6LTnIgy65"))
                                 .Set(p => p.Mode, WpfVNode.Create<AerialMode>())
                                 .Set(p => p.Center, state.Center.ToLocation())
                                 .Set(p => p.ZoomLevel, state.MapZoomLevel)
-                                .Set(p => p.Height, 500)
-                                .Set(p => p.Culture, "de-AT")
+                                .SetConstant(p => p.Height, 500)
+                                .SetConstant(p => p.Culture, "de-AT")
                                 .SetCollection(
                                     p => p.Children,
                                     WpfVNode.Create<MapLayer>()
@@ -271,16 +270,16 @@ namespace Wpf.Elmish.Net.Sample
                                         .Subscribe(m => dispatch(m))
                                 ),
                             WpfVNode.Create<DataGrid>()
-                                .Set(p => p.AutoGenerateColumns, false)
-                                .Set(p => p.CanUserAddRows, true)
+                                .SetConstant(p => p.AutoGenerateColumns, false)
+                                .SetConstant(p => p.CanUserAddRows, true)
                                 .Set(p => p.SelectedIndex, state.Areas.FindIndex(area => area.IsSelected))
                                 .SetCollection(p => p.Columns,
                                     WpfVNode.Create<DataGridTextColumn>()
-                                        .Set(p => p.Header, "Title")
-                                        .Set(p => p.Binding, new Binding(nameof(AreaInformation.Title))),
+                                        .SetConstant(p => p.Header, "Title")
+                                        .SetConstant(p => p.Binding, new Binding(nameof(AreaInformation.Title))),
                                     WpfVNode.Create<DataGridTextColumn>()
-                                        .Set(p => p.Header, "Number of edges")
-                                        .Set(p => p.Binding, new Binding(nameof(AreaInformation.EdgeCount)))
+                                        .SetConstant(p => p.Header, "Number of edges")
+                                        .SetConstant(p => p.Binding, new Binding(nameof(AreaInformation.EdgeCount)))
                                 )
                                 .SetCollection(
                                     p => p.ItemsSource,
@@ -336,20 +335,20 @@ namespace Wpf.Elmish.Net.Sample
                 ? (IVNode<MapShapeBase>)WpfVNode.Create<MapPolygon>()
                 : WpfVNode.Create<MapPolyline>();
             yield return node
-                .Set(p => p.Stroke, new SolidColorBrush(color))
-                .Set(p => p.StrokeThickness, 3)
-                .Set(p => p.StrokeLineJoin, PenLineJoin.Round)
-                .Set(p => p.Locations, new LocationCollection())
+                .SetConstant(p => p.Stroke, new SolidColorBrush(color))
+                .SetConstant(p => p.StrokeThickness, 3)
+                .SetConstant(p => p.StrokeLineJoin, PenLineJoin.Round)
+                .SetConstant(p => p.Locations, new LocationCollection())
                 .SetCollection(p => p.Locations, locations)
-                .Set(p => p.Opacity, 0.7);
+                .SetConstant(p => p.Opacity, 0.7);
 
             var edgeWidth = 10;
             var edges = area.Coordinates
                 .Select((p, locationIndex) => WpfVNode.Create<Ellipse>()
-                    .Set(q => q.Width, edgeWidth)
-                    .Set(q => q.Height, edgeWidth)
-                    .Set(q => q.Fill, new SolidColorBrush(color))
-                    .Set(q => q.Opacity, 0.9)
+                    .SetConstant(q => q.Width, edgeWidth)
+                    .SetConstant(q => q.Height, edgeWidth)
+                    .SetConstant(q => q.Fill, new SolidColorBrush(color))
+                    .SetConstant(q => q.Opacity, 0.9)
                     .Attach(MapLayer.PositionProperty, p.Coordinate.ToLocation())
                     .Attach(MapLayer.PositionOffsetProperty, new Point(-edgeWidth / 2.0, -edgeWidth / 2.0))
                     .Subscribe(q =>

@@ -14,14 +14,13 @@ namespace Elmish.Net.Utils
         public (Func<TObj, TProp> getter, Action<TObj, TProp> setter) Lookup<TObj, TProp>(
             Expression<Func<TObj, TProp>> expression)
         {
-            var (getter, setter) = expressionCache
-                .GetOrAdd(
-                    GetUniqueId(expression.Body),
-                    _ => (expression.Compile(), expression.CreateSetter()));
+            var (getter, setter) = expressionCache.GetOrAdd(
+                GetUniqueId(expression),
+                _ => ((expression.Compile(), expression.CreateSetter())));
             return ((Func<TObj, TProp>)getter, (Action<TObj, TProp>)setter);
         }
 
-        private static string GetUniqueId(Expression expression)
+        private static string GetUniqueId(LambdaExpression expression)
         {
             var visitor = new PropertyExpressionUniqueIdVisitor();
             visitor.Visit(expression);
@@ -30,10 +29,11 @@ namespace Elmish.Net.Utils
 
         private class PropertyExpressionUniqueIdVisitor : ExpressionVisitor
         {
-            private string rootType = "<unknown>";
+            private string inType = "<unknown>";
+            private string outType = "<unknown>";
             private IImmutableList<string> members = ImmutableList<string>.Empty;
 
-            public string Id => $"{rootType}::{string.Join(".", members)}";
+            public string Id => $"{inType}::{string.Join(".", members)}::{outType}";
 
             protected override Expression VisitMember(MemberExpression node)
             {
@@ -45,7 +45,14 @@ namespace Elmish.Net.Utils
             protected override Expression VisitParameter(ParameterExpression node)
             {
                 var result = base.VisitParameter(node);
-                rootType = node.Type.FullName;
+                inType = node.Type.FullName;
+                return result;
+            }
+
+            protected override Expression VisitLambda<T>(Expression<T> node)
+            {
+                var result = node.Update(Visit(node.Body), node.Parameters);
+                outType = node.ReturnType.FullName;
                 return result;
             }
         }
