@@ -37,14 +37,19 @@ namespace Elmish.Net
 
     internal static class ResourceDisposable
     {
+        public static IResourceDisposable<T> Create<T>(T resource, IEnumerable<IDisposable> disposables)
+        {
+            return new ResourceDisposable<T>(resource, new CompositeDisposable(disposables));
+        }
+
         public static IResourceDisposable<T> Create<T>(T resource, params IDisposable[] disposables)
         {
             return new ResourceDisposable<T>(resource, new CompositeDisposable(disposables));
         }
 
-        public static IResourceDisposable<T> Create<T>(T resource, IEnumerable<IDisposable> disposables)
+        public static IResourceDisposable<T> Create<T>(T resource)
         {
-            return Create(resource, disposables.ToArray());
+            return new ResourceDisposable<T>(resource, Disposable.Empty);
         }
     }
 
