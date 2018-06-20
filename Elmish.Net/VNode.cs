@@ -48,10 +48,10 @@ namespace Elmish.Net
         private static readonly PropertyExpressionCache propertyExpressionCache =
             new PropertyExpressionCache();
 
-        private static IVNode<T> Set<T, TProp>(
+        public static IVNode<T> Set<T, TProp>(
             this IVNode<T> vNode,
             Expression<Func<T, TProp>> propertyExpression,
-            Func<Option<TProp>, IResourceDisposable<TProp>> getValue,
+            IVNode<TProp> value,
             IEqualityComparer<TProp> equalityComparer)
         {
             var (getter, setter) = propertyExpressionCache.Lookup(propertyExpression);
@@ -59,12 +59,12 @@ namespace Elmish.Net
             {
                 var o = vNode.Materialize(node);
                 var existingValue = getter(o.Resource);
-                var value = getValue(existingValue);
-                if (!equalityComparer.Equals(value.Resource, existingValue))
+                var newValue = value.Materialize(Optional(existingValue));
+                if (!equalityComparer.Equals(newValue.Resource, existingValue))
                 {
-                    setter(o.Resource, value.Resource);
+                    setter(o.Resource, newValue.Resource);
                 }
-                return o.AddDisposable(value);
+                return o.AddDisposable(newValue);
             });
         }
 
@@ -73,22 +73,26 @@ namespace Elmish.Net
             Expression<Func<T, TProp>> propertyExpression,
             IVNode<TProp> value)
         {
-            return node.Set(
-                propertyExpression,
-                o => value.Materialize(o),
-                EqualityComparer<TProp>.Default);
+            return node.Set(propertyExpression, value, EqualityComparer<TProp>.Default);
         }
 
         public static IVNode<T> Set<T, TProp>(
-            this IVNode<T> node,
+            this IVNode<T> vNode,
             Expression<Func<T, TProp>> propertyExpression,
-            TProp value,
+            TProp newValue,
             IEqualityComparer<TProp> equalityComparer)
         {
-            return node.Set(
-                propertyExpression,
-                _ => ResourceDisposable.Create(value),
-                equalityComparer);
+            var (getter, setter) = propertyExpressionCache.Lookup(propertyExpression);
+            return new VNode<T>(node =>
+            {
+                var o = vNode.Materialize(node);
+                var existingValue = getter(o.Resource);
+                if (!equalityComparer.Equals(newValue, existingValue))
+                {
+                    setter(o.Resource, newValue);
+                }
+                return o;
+            });
         }
 
         public static IVNode<T> Set<T, TProp>(
