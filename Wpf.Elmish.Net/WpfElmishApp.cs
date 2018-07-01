@@ -1,7 +1,11 @@
 using Elmish.Net;
+using Elmish.Net.VDom;
 using System;
+using System.Reactive;
 using System.Reactive.Concurrency;
+using System.Reactive.Linq;
 using System.Windows;
+using System.Windows.Media;
 
 namespace Wpf.Elmish.Net
 {
@@ -11,9 +15,21 @@ namespace Wpf.Elmish.Net
             Application app,
             (TState State, Cmd<TMessage> Cmd) init,
             Func<TMessage, TState, (TState, Cmd<TMessage>)> update,
-            Func<TState, Dispatch<TMessage>, IVNode<Window>> view)
+            Func<TState, Dispatch<TMessage>, IVDomNode<Window>> view)
         {
-            ElmishApp.Run(init, update, view, DispatcherScheduler.Current, () => app.MainWindow);
+            var requestAnimationFrame = Observable
+                .FromEventPattern(
+                    h => CompositionTarget.Rendering += h,
+                    h => CompositionTarget.Rendering -= h)
+                .Select(_ => Unit.Default);
+            ElmishApp.Run(
+                requestAnimationFrame,
+                init,
+                update,
+                view,
+                TaskPoolScheduler.Default,
+                DispatcherScheduler.Current,
+                () => app.MainWindow);
             app.Run();
         }
     }

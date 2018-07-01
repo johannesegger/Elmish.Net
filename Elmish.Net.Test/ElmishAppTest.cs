@@ -1,12 +1,10 @@
-using System;
 using System.Collections.Generic;
-using System.Collections.Immutable;
+using System.Reactive;
 using System.Reactive.Concurrency;
 using System.Reactive.Linq;
-using System.Reactive.Subjects;
 using System.Threading.Tasks;
+using Elmish.Net.VDom;
 using FluentAssertions;
-using LanguageExt;
 using Xunit;
 
 namespace Elmish.Net.Test
@@ -18,6 +16,7 @@ namespace Elmish.Net.Test
         {
             var messages = new List<string>();
             ElmishApp.Run(
+                Observable.Return(Unit.Default),
                 (State: true, Cmd: Cmd.OfMsg("init")),
                 (msg, state) =>
                 {
@@ -30,8 +29,9 @@ namespace Elmish.Net.Test
                     {
                         dispatch("view");
                     }
-                    return VNode.Create<object>();
+                    return VDomNode.Create<object>();
                 },
+                ImmediateScheduler.Instance,
                 ImmediateScheduler.Instance,
                 () => new RootNode().Content);
 
@@ -43,6 +43,7 @@ namespace Elmish.Net.Test
         {
             var messages = new List<string>();
             ElmishApp.Run(
+                Observable.Return(Unit.Default),
                 (State: 0, Cmd: Cmd.OfMsg("initial")),
                 (msg, state) =>
                 {
@@ -54,7 +55,8 @@ namespace Elmish.Net.Test
                     });
                     return (state + 1, cmd);
                 },
-                (state, dispatch) => VNode.Create<object>(),
+                (state, dispatch) => VDomNode.Create<object>(),
+                ImmediateScheduler.Instance,
                 ImmediateScheduler.Instance,
                 () => new RootNode().Content);
 

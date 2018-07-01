@@ -12,6 +12,7 @@ using System.Windows.Media;
 using System.Windows.Shapes;
 using System.Windows.Threading;
 using Elmish.Net;
+using Elmish.Net.VDom;
 using LanguageExt;
 using MahApps.Metro.Controls;
 using Microsoft.Maps.MapControl.WPF;
@@ -145,48 +146,49 @@ namespace Wpf.Elmish.Net.Sample
                 });
         }
 
-        private static IVNode<Window> View(State state, Dispatch<Message> dispatch)
+        private static IVDomNode<Window> View(State state, Dispatch<Message> dispatch)
         {
             const double tolerancePixels = 10;
 
-            return WpfVNode.Create<MetroWindow>()
-                .SetConstant(p => p.Visibility, Visibility.Visible)
+            return WpfVDomNode.Create<MetroWindow>()
+                .Set(p => p.Visibility, Visibility.Visible)
                 .Set(p => p.Title, $"Wpf.Elmish.Net.Sample - {state.Title}")
-                .SetConstant(p => p.Width, 1024)
-                .SetConstant(p => p.Height, 768)
+                .Set(p => p.Width, 1024)
+                .Set(p => p.Height, 768)
                 .Set(
                     p => p.Content,
-                    WpfVNode.Create<StackPanel>()
-                        .SetCollection(
+                    WpfVDomNode.Create<StackPanel>()
+                        .SetChildNodes(
                             p => p.Children,
-                            WpfVNode.Create<StackPanel>()
-                                .SetConstant(p => p.Orientation, Orientation.Horizontal)
-                                .SetCollection(
+                            WpfVDomNode.Create<StackPanel>()
+                                .Set(p => p.Orientation, Orientation.Horizontal)
+                                .SetChildNodes(
                                     p => p.Children,
-                                    WpfVNode.Create<TextBlock>()
-                                        .SetConstant(p => p.Text, "Map title: ")
-                                        .SetConstant(p => p.Margin, new Thickness(5, 0, 5, 0))
-                                        .SetConstant(p => p.VerticalAlignment, VerticalAlignment.Center),
-                                    WpfVNode.Create<TextBox>()
+                                    WpfVDomNode.Create<TextBlock>()
+                                        .Set(p => p.Text, "Map title: ")
+                                        .Set(p => p.Margin, new Thickness(5, 0, 5, 0))
+                                        .Set(p => p.VerticalAlignment, VerticalAlignment.Center),
+                                    WpfVDomNode.Create<TextBox>()
                                         .Set(p => p.Text, state.Title)
                                         .Subscribe(p => p
                                             .TextChangedObservable()
                                             .Subscribe(e => dispatch(new Message.SetTitleMessage(p.Text)))
                                         )
                                 ),
-                            WpfVNode.Create<WpfMap>()
-                                .SetConstant(
+                            WpfVDomNode.Create<WpfMap>()
+                                .Set(
                                     p => p.CredentialsProvider,
-                                    new ApplicationIdCredentialsProvider("AiYVQeyKth-2j8dkcIPe58rz3zxNt6Hw-ydHJhZLfklNfZPrWM9HlBr6LTnIgy65"))
-                                .Set(p => p.Mode, WpfVNode.Create<AerialMode>())
+                                    new ApplicationIdCredentialsProvider("AiYVQeyKth-2j8dkcIPe58rz3zxNt6Hw-ydHJhZLfklNfZPrWM9HlBr6LTnIgy65"),
+                                    EqualityComparer.Create((CredentialsProvider p) => 1))
+                                .Set(p => p.Mode, WpfVDomNode.Create<AerialMode>())
                                 .Set(p => p.Center, state.Center.ToLocation())
                                 .Set(p => p.ZoomLevel, state.MapZoomLevel)
-                                .SetConstant(p => p.Height, 500)
-                                .SetConstant(p => p.Culture, "de-AT")
-                                .SetCollection(
+                                .Set(p => p.Height, 500)
+                                .Set(p => p.Culture, "de-AT")
+                                .SetChildNodes(
                                     p => p.Children,
-                                    WpfVNode.Create<MapLayer>()
-                                        .SetCollection(
+                                    WpfVDomNode.Create<MapLayer>()
+                                        .SetChildNodes(
                                             p => p.Children,
                                             state.Areas
                                                 .SelectMany((area, i) => AreaView(i, area, dispatch))
@@ -243,8 +245,9 @@ namespace Wpf.Elmish.Net.Sample
                                     return d;
                                 })
                                 .Subscribe(map => map
-                                    .MouseLeftButtonDownObservable()
+                                    .PreviewMouseLeftButtonDownObservable()
                                     .Where(e => e.EventArgs.ClickCount == 2)
+                                    .Do(e => e.EventArgs.Handled = true)
                                     .Select(mouseMoveEvent => mouseMoveEvent.EventArgs.GetPosition(map))
                                     .Choose(point => TryGetVertexPoint(map, point, tolerancePixels))
                                     .Subscribe(((int areaIndex, int coordinateIndex, Coordinate coordinate) q) =>
@@ -269,23 +272,22 @@ namespace Wpf.Elmish.Net.Sample
                                         .Where(m => m.ZoomLevel != state.MapZoomLevel || m.Center != state.Center)
                                         .Subscribe(m => dispatch(m))
                                 ),
-                            WpfVNode.Create<DataGrid>()
-                                .SetConstant(p => p.AutoGenerateColumns, false)
-                                .SetConstant(p => p.CanUserAddRows, true)
+                            WpfVDomNode.Create<DataGrid>()
+                                .Set(p => p.AutoGenerateColumns, false)
+                                .Set(p => p.CanUserAddRows, true)
                                 .Set(p => p.SelectedIndex, state.Areas.FindIndex(area => area.IsSelected))
-                                .SetCollection(p => p.Columns,
-                                    WpfVNode.Create<DataGridTextColumn>()
-                                        .SetConstant(p => p.Header, "Title")
-                                        .SetConstant(p => p.Binding, new Binding(nameof(AreaInformation.Title))),
-                                    WpfVNode.Create<DataGridTextColumn>()
-                                        .SetConstant(p => p.Header, "Number of edges")
-                                        .SetConstant(p => p.Binding, new Binding(nameof(AreaInformation.EdgeCount)))
+                                .SetChildNodes(p => p.Columns,
+                                    WpfVDomNode.Create<DataGridTextColumn>()
+                                        .Set(p => p.Header, "Title")
+                                        .Set(p => p.Binding, new Binding(nameof(AreaInformation.Title))),
+                                    WpfVDomNode.Create<DataGridTextColumn>()
+                                        .Set(p => p.Header, "Number of edges")
+                                        .Set(p => p.Binding, new Binding(nameof(AreaInformation.EdgeCount)))
                                 )
                                 .SetCollection(
                                     p => p.ItemsSource,
                                     state.Areas
                                         .Select((area, index) => new AreaInformation(area.Note, area.Coordinates.Count, index))
-                                        .ToList()
                                 )
                                 .Subscribe(
                                     p => p.SelectionChangedObservable()
@@ -318,7 +320,7 @@ namespace Wpf.Elmish.Net.Sample
                 );
         }
 
-        private static IEnumerable<IVNode> AreaView(
+        private static IEnumerable<IVDomNode> AreaView(
             int areaIndex,
             Area area,
             Dispatch<Message> dispatch)
@@ -332,32 +334,35 @@ namespace Wpf.Elmish.Net.Sample
             var color = area.IsSelected ? Colors.OrangeRed : Colors.PaleVioletRed;
 
             var node = area.IsDefined
-                ? (IVNode<MapShapeBase>)WpfVNode.Create<MapPolygon>()
-                : WpfVNode.Create<MapPolyline>();
+                ? (IVDomNode<MapShapeBase>)WpfVDomNode.Create<MapPolygon>()
+                : WpfVDomNode.Create<MapPolyline>();
             yield return node
-                .SetConstant(p => p.Stroke, new SolidColorBrush(color))
-                .SetConstant(p => p.StrokeThickness, 3)
-                .SetConstant(p => p.StrokeLineJoin, PenLineJoin.Round)
-                .SetConstant(p => p.Locations, new LocationCollection())
+                .Set(p => p.Stroke, WpfVDomNode.Create<SolidColorBrush>().Set(p => p.Color, color))
+                .Set(p => p.StrokeThickness, 3)
+                .Set(p => p.StrokeLineJoin, PenLineJoin.Round)
+                .Set(
+                    p => p.Locations,
+                    new LocationCollection(),
+                    EqualityComparer.Create((System.Collections.IList l) => l == null))
                 .SetCollection(p => p.Locations, locations)
-                .SetConstant(p => p.Opacity, 0.7);
+                .Set(p => p.Opacity, 0.7);
 
             var edgeWidth = 10;
             var edges = area.Coordinates
-                .Select((p, locationIndex) => WpfVNode.Create<Ellipse>()
-                    .SetConstant(q => q.Width, edgeWidth)
-                    .SetConstant(q => q.Height, edgeWidth)
-                    .SetConstant(q => q.Fill, new SolidColorBrush(color))
-                    .SetConstant(q => q.Opacity, 0.9)
-                    .Attach(MapLayer.PositionProperty, p.Coordinate.ToLocation())
+                .Select((coord, locationIndex) => WpfVDomNode.Create<Ellipse>()
+                    .Set(p => p.Width, edgeWidth)
+                    .Set(p => p.Height, edgeWidth)
+                    .Set(p => p.Fill, WpfVDomNode.Create<SolidColorBrush>().Set(p => p.Color, color))
+                    .Set(p => p.Opacity, 0.9)
+                    .Attach(MapLayer.PositionProperty, coord.Coordinate.ToLocation())
                     .Attach(MapLayer.PositionOffsetProperty, new Point(-edgeWidth / 2.0, -edgeWidth / 2.0))
-                    .Subscribe(q =>
+                    .Subscribe(p =>
                     {
                         var d = new CompositeDisposable();
 
-                        if (p.IsDragging)
+                        if (coord.IsDragging)
                         {
-                            var map = q.TryFindParent<WpfMap>();
+                            var map = p.TryFindParent<WpfMap>();
                             map
                                 .PreviewMouseMoveObservable()
                                 .Do(mouseMoveEvent => mouseMoveEvent.EventArgs.Handled = true)
@@ -388,7 +393,7 @@ namespace Wpf.Elmish.Net.Sample
                 yield return edge;
             }
 
-            yield return WpfVNode.Create<Pushpin>()
+            yield return WpfVDomNode.Create<Pushpin>()
                 .Set(p => p.Location, areaCenter.ToLocation())
                 .Set(p => p.Content, area.Note.Substring(0, 1))
                 .Attach(ToolTipService.ToolTipProperty, area.Note);

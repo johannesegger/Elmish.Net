@@ -3,7 +3,7 @@ using static LanguageExt.Prelude;
 
 namespace Elmish.Net.Utils
 {
-    internal static class OptionExtensions
+    public static class OptionExtensions
     {
         public static Option<T> TryCast<T>(this IOptional o)
         {

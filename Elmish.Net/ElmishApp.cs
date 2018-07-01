@@ -5,16 +5,22 @@ using System.Reactive.Concurrency;
 using System.Reactive.Disposables;
 using System.Reactive.Linq;
 using System.Reactive.Subjects;
+using Elmish.Net.Utils;
+using Elmish.Net.VDom;
+using LanguageExt;
 using static LanguageExt.Prelude;
+using Unit = System.Reactive.Unit;
 
 namespace Elmish.Net
 {
     public static class ElmishApp
     {
         public static void Run<TState, TMessage, TViewNode>(
+            IObservable<Unit> requestAnimationFrame,
             (TState State, Cmd<TMessage> Cmd) init,
             Func<TMessage, TState, (TState, Cmd<TMessage>)> update,
-            Func<TState, Dispatch<TMessage>, IVNode<TViewNode>> view,
+            Func<TState, Dispatch<TMessage>, IVDomNode<TViewNode>> view,
+            IScheduler workerScheduler,
             IScheduler dispatcherScheduler,
             Expression<Func<TViewNode>> rootNode)
         {
@@ -24,35 +30,54 @@ namespace Elmish.Net
             var getter = rootNode.Compile();
             var setter = rootNode.CreateSetter();
 
-            var viewSubscriptionsDisposable = new SerialDisposable();
-            var commandDisposable = new SerialDisposable();
+            var d = new CompositeDisposable();
+
+            var viewSubscriptionsDisposable = new SerialDisposable()
+                .DisposeWith(d);
 
             var initSubject = new Subject<(TState State, Cmd<TMessage> Cmd)>();
 
             var obs = messageSubject
+                //.ObserveOn(workerScheduler)
                 .Scan(init, (updateResult, message) => update(message, updateResult.State))
-                .Merge(initSubject)
+                .Merge(initSubject/*.ObserveOn(workerScheduler)*/)
+                .Publish()
+                .RefCount();
+
+            obs
+                .Subscribe(updateResult => updateResult.Cmd.Subs.ForEach(sub => sub(dispatch)))
+                .DisposeWith(d);
+
+            var diffBaseNode = new Subject<Option<IVDomNode<TViewNode>>>();
+
+            var mergeResults = obs
+                .Select(updateResult => view(updateResult.State, dispatch))
+                .WithLatestFrom(
+                    diffBaseNode,
+                    (currentView, baseView) => (currentView: currentView, merge: currentView.MergeWith(baseView.TryCast<IVDomNode>())));
+
+            mergeResults
+                .Sample(requestAnimationFrame)
+                .Do(p => diffBaseNode.OnNext(Some(p.currentView)))
                 .ObserveOn(dispatcherScheduler)
-                .Subscribe(updateResult =>
+                .Subscribe(p =>
                 {
-                    var viewResult = view(updateResult.State, dispatch);
+                    var oldNode = getter();
+                    viewSubscriptionsDisposable.Disposable = Disposable.Empty;
+                    var (newNode, subscription) = p.merge(oldNode);
+                    viewSubscriptionsDisposable.Disposable = subscription;
+                    newNode.TryCast<TViewNode>().IfSome(setter);
+                })
+                .DisposeWith(d);
 
-                    var oldContent = getter();
-                    var newContent = viewResult.Materialize(Optional(oldContent));
-                    viewSubscriptionsDisposable.Disposable = newContent;
-                    if (!ReferenceEquals(oldContent, newContent.Resource))
-                    {
-                        setter(newContent.Resource);
-                    }
-
-                    updateResult.Cmd.Subs.ForEach(sub => sub(dispatch));
-                });
+            diffBaseNode.OnNext(None);
 
             // Wait for the first item to be published until the subscription is fully set up.
             // If we didn't wait here and instead used `.StartWith(init)`
             // the subscriber would get called before the subscription to `messageSubject`
             // is fully set up and calls to `dispatchSubject.OnNext` might get lost.
             initSubject.OnNext(init);
+            initSubject.OnCompleted();
         }
     }
 }
