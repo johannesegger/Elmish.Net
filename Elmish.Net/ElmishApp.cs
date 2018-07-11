@@ -48,29 +48,24 @@ namespace Elmish.Net
                 .Subscribe(updateResult => updateResult.Cmd.Subs.ForEach(sub => sub(dispatch)))
                 .DisposeWith(d);
 
-            var diffBaseNode = new Subject<Option<IVDomNode<TViewNode>>>();
-
             var mergeResults = obs
                 .Select(updateResult => view(updateResult.State, dispatch))
-                .WithLatestFrom(
-                    diffBaseNode,
-                    (currentView, baseView) => (currentView: currentView, merge: currentView.MergeWith(baseView.TryCast<IVDomNode>())));
+                .Sample(requestAnimationFrame)
+                .StartWith((IVDomNode)null)
+                .Buffer(2, 1)
+                .Select(b => b[1].MergeWith(Optional(b[0])));
 
             mergeResults
-                .Sample(requestAnimationFrame)
-                .Do(p => diffBaseNode.OnNext(Some(p.currentView)))
                 .ObserveOn(dispatcherScheduler)
-                .Subscribe(p =>
+                .Subscribe(merge =>
                 {
                     var oldNode = getter();
                     viewSubscriptionsDisposable.Disposable = Disposable.Empty;
-                    var (newNode, subscription) = p.merge(oldNode);
+                    var (newNode, subscription) = merge(oldNode);
                     viewSubscriptionsDisposable.Disposable = subscription;
                     newNode.TryCast<TViewNode>().IfSome(setter);
                 })
                 .DisposeWith(d);
-
-            diffBaseNode.OnNext(None);
 
             // Wait for the first item to be published until the subscription is fully set up.
             // If we didn't wait here and instead used `.StartWith(init)`
