@@ -20,6 +20,7 @@ namespace Elmish.Net
             (TState State, Cmd<TMessage> Cmd) init,
             Func<TMessage, TState, (TState, Cmd<TMessage>)> update,
             Func<TState, Dispatch<TMessage>, IVDomNode<TViewNode>> view,
+            Func<IObservable<TState>, IObservable<TMessage>> subscriptions,
             IScheduler workerScheduler,
             IScheduler dispatcherScheduler,
             Expression<Func<TViewNode>> rootNode)
@@ -67,12 +68,36 @@ namespace Elmish.Net
                 })
                 .DisposeWith(d);
 
-            // Wait for the first item to be published until the subscription is fully set up.
-            // If we didn't wait here and instead used `.StartWith(init)`
+            subscriptions(obs.Select(o => o.State))
+                .Subscribe(m => dispatch(m))
+                .DisposeWith(d);
+
+            // Have the subscription fully set up before the first item is published.
+            // If we didn't wait until here and instead used `.StartWith(init)`
             // the subscriber would get called before the subscription to `messageSubject`
             // is fully set up and calls to `dispatchSubject.OnNext` might get lost.
             initSubject.OnNext(init);
             initSubject.OnCompleted();
+        }
+
+        public static void Run<TState, TMessage, TViewNode>(
+            IObservable<Unit> requestAnimationFrame,
+            (TState State, Cmd<TMessage> Cmd) init,
+            Func<TMessage, TState, (TState, Cmd<TMessage>)> update,
+            Func<TState, Dispatch<TMessage>, IVDomNode<TViewNode>> view,
+            IScheduler workerScheduler,
+            IScheduler dispatcherScheduler,
+            Expression<Func<TViewNode>> rootNode)
+        {
+            Run(
+                requestAnimationFrame,
+                init,
+                update,
+                view,
+                _ => Observable.Empty<TMessage>(),
+                workerScheduler,
+                dispatcherScheduler,
+                rootNode);
         }
     }
 }
