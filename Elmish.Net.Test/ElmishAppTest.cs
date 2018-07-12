@@ -35,7 +35,7 @@ namespace Elmish.Net.Test
                 ImmediateScheduler.Instance,
                 () => new RootNode().Content);
 
-            messages.Should().BeEquivalentTo(new[] { "view", "init", "update" }, config => config.WithStrictOrdering());
+            messages.Should().BeEquivalentTo(new[] { "init", "view", "update" }, config => config.WithStrictOrdering());
         }
 
         [Fact]
