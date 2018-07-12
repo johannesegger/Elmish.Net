@@ -15,7 +15,8 @@ namespace Wpf.Elmish.Net
             Application app,
             (TState State, Cmd<TMessage> Cmd) init,
             Func<TMessage, TState, (TState, Cmd<TMessage>)> update,
-            Func<TState, Dispatch<TMessage>, IVDomNode<Window>> view)
+            Func<TState, Dispatch<TMessage>, IVDomNode<Window>> view,
+            Func<IObservable<TState>, IObservable<TMessage>> subscriptions)
         {
             var requestAnimationFrame = Observable
                 .FromEventPattern(
@@ -27,10 +28,20 @@ namespace Wpf.Elmish.Net
                 init,
                 update,
                 view,
+                subscriptions,
                 TaskPoolScheduler.Default,
                 DispatcherScheduler.Current,
                 () => app.MainWindow);
             app.Run();
+        }
+
+        public static void Run<TState, TMessage>(
+            Application app,
+            (TState State, Cmd<TMessage> Cmd) init,
+            Func<TMessage, TState, (TState, Cmd<TMessage>)> update,
+            Func<TState, Dispatch<TMessage>, IVDomNode<Window>> view)
+        {
+            Run(app, init, update, view, _ => Observable.Empty<TMessage>());
         }
     }
 }
