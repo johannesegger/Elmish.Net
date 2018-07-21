@@ -7,38 +7,28 @@ namespace Elmish.Net
 {
     public delegate void Dispatch<in TMessage>(TMessage message);
 
-    public delegate void Sub<out TMessage>(Dispatch<TMessage> dispatch);
-
     public class Cmd<TMessage>
     {
-        public Cmd(IEnumerable<Sub<TMessage>> subs)
+        private readonly Action<Dispatch<TMessage>> execute;
+
+        public Cmd(Action<Dispatch<TMessage>> execute)
         {
-            Subs = subs.ToList();
+            this.execute = execute;
         }
 
-        public IReadOnlyCollection<Sub<TMessage>> Subs { get; }
+        public void Execute(Dispatch<TMessage> dispatch) => this.execute(dispatch);
     }
 
     public static class Cmd
     {
         public static Cmd<TMessage> None<TMessage>()
         {
-            return new Cmd<TMessage>(new Sub<TMessage>[0]);
-        }
-
-        public static Cmd<TMessage> OfSub<TMessage>(Sub<TMessage> sub)
-        {
-            return new Cmd<TMessage>(new[] { sub });
-        }
-
-        public static Cmd<TMessage> OfMsg<TMessage>(TMessage message)
-        {
-            return OfSub<TMessage>(dispatch => dispatch(message));
+            return new Cmd<TMessage>(_ => {});
         }
 
         public static Cmd<TMessage> Batch<TMessage>(IEnumerable<Cmd<TMessage>> cmds)
         {
-            return new Cmd<TMessage>(cmds.SelectMany(p => p.Subs));
+            return new Cmd<TMessage>(dispatch => cmds.ForEach(p => p.Execute(dispatch)));
         }
 
         public static Cmd<TMessage> Batch<TMessage>(params Cmd<TMessage>[] cmds)
@@ -51,7 +41,7 @@ namespace Elmish.Net
             Func<TResult, TMessage> ofSuccess,
             Func<Exception, TMessage> ofError)
         {
-            async void Sub(Dispatch<TMessage> dispatch)
+            return new Cmd<TMessage>(async dispatch =>
             {
                 try
                 {
@@ -61,9 +51,7 @@ namespace Elmish.Net
                 {
                     dispatch(ofError(e));
                 }
-            }
-
-            return OfSub<TMessage>(Sub);
+            });
         }
 
         public static Cmd<TMessage> OfAsync<TMessage>(
@@ -71,20 +59,15 @@ namespace Elmish.Net
             TMessage success,
             Func<Exception, TMessage> ofError)
         {
-            async void Sub(Dispatch<TMessage> dispatch)
-            {
-                try
+            return OfAsync(
+                async () =>
                 {
                     await action();
-                    dispatch(success);
-                }
-                catch (Exception e)
-                {
-                    dispatch(ofError(e));
-                }
-            }
-
-            return OfSub<TMessage>(Sub);
+                    return (object)null;
+                },
+                _ => success,
+                ofError
+            );
         }
     }
 }
