@@ -19,7 +19,6 @@ namespace Elmish.Net.Utils
             {
                 var d = new CompositeDisposable();
 
-                var gate = new object();
                 var items = new BlockingCollection<TIn>(new ConcurrentQueue<TIn>());
                 source
                     .Subscribe(items.Add)
@@ -35,6 +34,7 @@ namespace Elmish.Net.Utils
                         while (true)
                         {
                             var currentItem = items.Take(ct); // TODO async wait would be nicer
+                            // Consume all items and use latest
                             while (items.TryTake(out var item))
                             {
                                 currentItem = item;
