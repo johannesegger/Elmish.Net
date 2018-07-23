@@ -36,8 +36,7 @@ namespace Elmish.Net
             var obs = messageSubject
                 .Scan(init, (updateResult, message) => update(message, updateResult.State))
                 .StartWith(init)
-                .Publish()
-                .RefCount();
+                .Publish();
 
             obs
                 .Subscribe(updateResult => updateResult.Cmd.Execute(dispatch))
@@ -104,6 +103,8 @@ namespace Elmish.Net
                     newNode.TryCast<TViewNode>().IfSome(setter);
                 })
                 .DisposeWith(d);
+
+            obs.Connect().DisposeWith(d);
         }
 
         public static void Run<TState, TMessage, TViewNode>(
