@@ -5,6 +5,7 @@ using System.Reactive.Concurrency;
 using System.Reactive.Disposables;
 using System.Reactive.Linq;
 using System.Reactive.Subjects;
+using System.Threading;
 using Elmish.Net.Utils;
 using Elmish.Net.VDom;
 using LanguageExt;
@@ -21,27 +22,20 @@ namespace Elmish.Net
             Func<TMessage, TState, (TState, Cmd<TMessage>)> update,
             Func<TState, Dispatch<TMessage>, IVDomNode<TViewNode>> view,
             Func<TState, Sub<TMessage>> subscriptions,
-            IScheduler workerScheduler,
             IScheduler dispatcherScheduler,
             Expression<Func<TViewNode>> rootNode)
         {
             var messageSubject = new Subject<TMessage>();
-            Dispatch<TMessage> dispatch = v => dispatcherScheduler.Schedule(() => messageSubject.OnNext(v));
+            Dispatch<TMessage> dispatch = v => messageSubject.OnNext(v);
 
             var getter = rootNode.Compile();
             var setter = rootNode.CreateSetter();
 
             var d = new CompositeDisposable();
 
-            var viewSubscriptionsDisposable = new SerialDisposable()
-                .DisposeWith(d);
-
-            var initSubject = new Subject<(TState State, Cmd<TMessage> Cmd)>();
-
             var obs = messageSubject
-                //.ObserveOn(workerScheduler)
                 .Scan(init, (updateResult, message) => update(message, updateResult.State))
-                .Merge(initSubject/*.ObserveOn(workerScheduler)*/)
+                .StartWith(init)
                 .Publish()
                 .RefCount();
 
@@ -64,17 +58,42 @@ namespace Elmish.Net
                 })
                 .DisposeWith(d);
 
-            // TODO merge with base vdom
-            // on requestAnimationFrame use latest merger and set vdom as base vdom
-
+            // Merge current VDom with base VDom
+            // On requestAnimationFrame use latest merger and set VDom as base VDom
+            IVDomNode lastDom = null;
+            IVDomNode<TViewNode> currentDom = null;
+            MergeResult currentMerge = null;
+            var gate = new object();
             var mergeResults = obs
-                .Select(updateResult => view(updateResult.State, dispatch))
-                .Sample(requestAnimationFrame)
-                .StartWith((IVDomNode)null)
-                .Buffer(2, 1)
-                .Select(b => b[1].MergeWith(Optional(b[0])));
+                .Select(updateResult => updateResult.State)
+                .SkipIntermediate(
+                    state =>
+                    {
+                        var dom = view(state, dispatch);
+                        lock(gate)
+                        {
+                            currentDom = dom;
+                            currentMerge = dom.MergeWith(Optional(lastDom));
+                            return Unit.Default;
+                        }
+                    })
+                .Subscribe()
+                .DisposeWith(d);
 
-            mergeResults
+            var viewSubscriptionsDisposable = new SerialDisposable()
+                .DisposeWith(d);
+
+            requestAnimationFrame
+                .Select(_ =>
+                {
+                    lock(gate)
+                    {
+                        lastDom = currentDom;
+                        return currentMerge;
+                    }
+                })
+                .DistinctUntilChanged()
+                .Where(merge => merge != null)
                 .ObserveOn(dispatcherScheduler)
                 .Subscribe(merge =>
                 {
@@ -85,13 +104,6 @@ namespace Elmish.Net
                     newNode.TryCast<TViewNode>().IfSome(setter);
                 })
                 .DisposeWith(d);
-
-            // Wait before publishing the first item until the subscription is fully set up .
-            // If we didn't wait until here and instead used `.StartWith(init)`
-            // the subscriber would get called before the subscription to `messageSubject`
-            // is fully set up and calls to `dispatchSubject.OnNext` might get lost.
-            initSubject.OnNext(init);
-            initSubject.OnCompleted();
         }
 
         public static void Run<TState, TMessage, TViewNode>(
@@ -99,7 +111,6 @@ namespace Elmish.Net
             (TState State, Cmd<TMessage> Cmd) init,
             Func<TMessage, TState, (TState, Cmd<TMessage>)> update,
             Func<TState, Dispatch<TMessage>, IVDomNode<TViewNode>> view,
-            IScheduler workerScheduler,
             IScheduler dispatcherScheduler,
             Expression<Func<TViewNode>> rootNode)
         {
@@ -109,7 +120,6 @@ namespace Elmish.Net
                 update,
                 view,
                 _ => Sub.None<TMessage>(),
-                workerScheduler,
                 dispatcherScheduler,
                 rootNode);
         }

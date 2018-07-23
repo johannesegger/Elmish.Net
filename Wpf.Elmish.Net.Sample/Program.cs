@@ -116,11 +116,9 @@ namespace Wpf.Elmish.Net.Sample
                     var newArea = new Area(Enumerable.Empty<DraggableCoordinate>(), m.Title, isSelected: false, isDefined: false);
                     var newState = state.With(p => p.Areas, state.Areas.Add(newArea));
                     var newAreaIndex = newState.Areas.Count - 1;
-                    var cmd = Cmd.Batch(
-                        Cmd.OfMsg<Message>(new Message.SelectAreaMessage(newAreaIndex)),
-                        Cmd.OfMsg<Message>(new Message.BeginDefineAreaMessage(newAreaIndex))
-                    );
-                    return (newState, cmd);
+                    var (newState1, cmd1) = Update(new Message.SelectAreaMessage(newAreaIndex), newState);
+                    var (newState2, cmd2) = Update(new Message.BeginDefineAreaMessage(newAreaIndex), newState1);
+                    return (newState2, Cmd.Batch(cmd1, cmd2));
                 },
                 (Message.BeginDefineAreaMessage m) =>
                 {
