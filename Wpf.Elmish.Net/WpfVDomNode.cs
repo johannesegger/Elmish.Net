@@ -1,3 +1,4 @@
+using Elmish.Net;
 using Elmish.Net.Utils;
 using Elmish.Net.VDom;
 using LanguageExt;
@@ -9,29 +10,20 @@ using static LanguageExt.Prelude;
 
 namespace Wpf.Elmish.Net
 {
-    public static class WpfVDomNode
-    {
-        public static IVDomNode<T> Create<T>()
-            where T : DependencyObject, new()
-        {
-            return VDomNode.Create<T>();
-        }
-    }
-
     public static class VDomNodeExtensions
     {
-        public static IVDomNode<T> Attach<T, TProp>(
-            this IVDomNode<T> node,
+        public static IVDomNode<T, TMessage> Attach<T, TMessage, TProp>(
+            this IVDomNode<T, TMessage> node,
             DependencyProperty dependencyProperty,
             TProp value,
             IEqualityComparer<TProp> equalityComparer)
             where T : DependencyObject
         {
-            return node.AddProperty(new VDomNodeAttachedProperty<T, TProp>(dependencyProperty, value, equalityComparer));
+            return node.AddProperty(new VDomNodeAttachedProperty<T, TMessage, TProp>(dependencyProperty, value, equalityComparer));
         }
 
-        public static IVDomNode<T> Attach<T, TProp>(
-            this IVDomNode<T> node,
+        public static IVDomNode<T, TMessage> Attach<T, TMessage, TProp>(
+            this IVDomNode<T, TMessage> node,
             DependencyProperty dependencyProperty,
             TProp value)
             where T : DependencyObject
@@ -39,8 +31,8 @@ namespace Wpf.Elmish.Net
             return node.Attach(dependencyProperty, value, EqualityComparer<TProp>.Default);
         }
 
-        private class VDomNodeAttachedProperty<TParent, TValue>
-            : IVDomNodeProperty<TParent, TValue>
+        private class VDomNodeAttachedProperty<TParent, TMessage, TValue>
+            : IVDomNodeProperty<TParent, TMessage, TValue>
             where TParent : DependencyObject
         {
             private readonly DependencyProperty dependencyProperty;
@@ -58,26 +50,26 @@ namespace Wpf.Elmish.Net
 
             public TValue Value { get; }
 
-            public Func<TParent, IDisposable> MergeWith(IVDomNodeProperty property)
+            public Func<TParent, ISub<TMessage>> MergeWith(IVDomNodeProperty property)
             {
                 return Optional(property)
-                    .TryCast<IVDomNodeProperty<TParent, TValue>>()
+                    .TryCast<IVDomNodeProperty<TParent, TMessage, TValue>>()
                     .Bind(p =>
                         equalityComparer.Equals(p.Value, Value)
                         ? Some(Unit.Default)
                         : None
                     )
-                    .Some(_ => new Func<TParent, IDisposable>(o => Disposable.Empty))
-                    .None(() => new Func<TParent, IDisposable>(o =>
+                    .Some(_ => new Func<TParent, ISub<TMessage>>(o => Sub.None<TMessage>()))
+                    .None(() => new Func<TParent, ISub<TMessage>>(o =>
                         {
                             o.SetValue(dependencyProperty, Value);
-                            return Disposable.Empty;
+                            return Sub.None<TMessage>();
                         }));
             }
 
             public bool CanMergeWith(IVDomNodeProperty property)
             {
-                return property is VDomNodeAttachedProperty<TParent, TValue> p
+                return property is VDomNodeAttachedProperty<TParent, TMessage, TValue> p
                     && dependencyProperty.GlobalIndex == p.dependencyProperty.GlobalIndex;
             }
         }

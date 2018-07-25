@@ -15,7 +15,7 @@ namespace Wpf.Elmish.Net
             Application app,
             (TState State, Cmd<TMessage> Cmd) init,
             Func<TMessage, TState, (TState, Cmd<TMessage>)> update,
-            Func<TState, Dispatch<TMessage>, IVDomNode<Window>> view,
+            Func<TState, Dispatch<TMessage>, IVDomNode<Window, TMessage>> view,
             Func<TState, Sub<TMessage>> subscriptions)
         {
             var requestAnimationFrame = Observable
@@ -38,7 +38,7 @@ namespace Wpf.Elmish.Net
             Application app,
             (TState State, Cmd<TMessage> Cmd) init,
             Func<TMessage, TState, (TState, Cmd<TMessage>)> update,
-            Func<TState, Dispatch<TMessage>, IVDomNode<Window>> view)
+            Func<TState, Dispatch<TMessage>, IVDomNode<Window, TMessage>> view)
         {
             Run(app, init, update, view, _ => Sub.None<TMessage>());
         }

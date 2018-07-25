@@ -6,13 +6,13 @@ namespace Elmish.Net.VDom
     {
     }
 
-    public interface IVDomNodeProperty<in TParent> : IVDomNodeProperty
+    public interface IVDomNodeProperty<in TParent, out TMessage> : IVDomNodeProperty
     {
         bool CanMergeWith(IVDomNodeProperty property);
-        Func<TParent, IDisposable> MergeWith(IVDomNodeProperty property);
+        Func<TParent, ISub<TMessage>> MergeWith(IVDomNodeProperty property);
     }
 
-    public interface IVDomNodeProperty<TParent, out TValue> : IVDomNodeProperty<TParent>
+    public interface IVDomNodeProperty<in TParent, out TMessage, out TValue> : IVDomNodeProperty<TParent, TMessage>
     {
         TValue Value { get; }
     }

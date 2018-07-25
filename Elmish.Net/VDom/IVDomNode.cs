@@ -4,18 +4,18 @@ using LanguageExt;
 
 namespace Elmish.Net.VDom
 {
-    public delegate (Option<object> Node, IDisposable Subscriptions) MergeResult(Option<object> o);
-    public delegate (Option<T> Node, IDisposable Subscriptions) MergeResult<T>(Option<T> o);
+    public delegate (Option<object> Node, ISub<TMessage> Subscriptions) MergeResult<TMessage>(Option<object> o);
+    public delegate (Option<T> Node, ISub<TMessage> Subscriptions) MergeResult<TMessage, T>(Option<T> o);
 
-    public interface IVDomNode
+    public interface IVDomNode<TMessage>
     {
-        MergeResult MergeWith(Option<IVDomNode> node);
+        MergeResult<TMessage> MergeWith(Option<IVDomNode<TMessage>> node);
     }
 
-    public interface IVDomNode<out T> : IVDomNode
+    public interface IVDomNode<out T, TMessage> : IVDomNode<TMessage>
     {
         IReadOnlyCollection<IVDomNodeProperty> Properties { get; }
-        IVDomNode<T> AddProperty(IVDomNodeProperty<T> property);
-        IVDomNode<T> AddSubscription(Func<T, IDisposable> subscribe);
+        IVDomNode<T, TMessage> AddProperty(IVDomNodeProperty<T, TMessage> property);
+        IVDomNode<T, TMessage> AddSubscription(Func<T, ISub<TMessage>> subscribe);
     }
 }

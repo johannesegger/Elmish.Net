@@ -5,6 +5,8 @@ using Elmish.Net.VDom;
 using FluentAssertions;
 using Xunit;
 using static LanguageExt.Prelude;
+using static Elmish.Net.ElmishApp<int>;
+using System.Reactive.Linq;
 
 namespace Elmish.Net.Test
 {
@@ -13,13 +15,13 @@ namespace Elmish.Net.Test
         [Fact]
         public void ShouldCreateInitialDom()
         {
-            var dom = VDomNode.Create<A>()
+            var dom = VDomNode<A>()
                 .Set(
                     p => p.Child1,
-                    VDomNode.Create<A>()
+                    VDomNode<A>()
                         .Set(
                             p => p.Child1,
-                            VDomNode.Create<A>()
+                            VDomNode<A>()
                                 .Set(p => p.Child1, 3))
                         .Set(p => p.Child2, 2))
                 .Set(p => p.Child2, 1);
@@ -33,24 +35,24 @@ namespace Elmish.Net.Test
         [Fact]
         public void ShouldCreateDomDiff()
         {
-            var dom1 = VDomNode.Create<A>()
+            var dom1 = VDomNode<A>()
                 .Set(
                     p => p.Child1,
-                    VDomNode.Create<A>()
+                    VDomNode<A>()
                         .Set(
                             p => p.Child1,
-                            VDomNode.Create<A>()
+                            VDomNode<A>()
                                 .Set(p => p.Child1, 3))
                         .Set(p => p.Child2, 2))
                 .Set(p => p.Child2, 1);
 
-            var dom2 = VDomNode.Create<A>()
+            var dom2 = VDomNode<A>()
                 .Set(
                     p => p.Child1,
-                    VDomNode.Create<A>()
+                    VDomNode<A>()
                         .Set(
                             p => p.Child1,
-                            VDomNode.Create<B>()
+                            VDomNode<B>()
                                 .Set(p => p.Child1, 3))
                         .Set(p => p.Child2, 2))
                 .Set(p => p.Child2, 1);
@@ -58,7 +60,7 @@ namespace Elmish.Net.Test
             var fn1 = dom1.MergeWith(None);
             var v1 = fn1(None).Node.MatchUnsafe(o => (A)o, () => null);
 
-            var fn2 = dom2.MergeWith(Optional(dom1 as IVDomNode));
+            var fn2 = dom2.MergeWith(Optional(dom1 as IVDomNode<int>));
             var v2 = fn2(v1).Node.IfNone(v1);
 
             var expected = new A { Child1 = new A { Child1 = new B { Child1 = 3 }, Child2 = 2 }, Child2 = 1 };
@@ -69,24 +71,24 @@ namespace Elmish.Net.Test
         public void ShouldUpdateChangedPropertiesOnly()
         {
             var (o1, o2, o3) = (new C(), new C(), new C());
-            var dom1 = VDomNode.Create<A>()
+            var dom1 = VDomNode<A>()
                 .Set(
                     p => p.Child1,
-                    VDomNode.Create<A>()
+                    VDomNode<A>()
                         .Set(
                             p => p.Child1,
-                            VDomNode.Create<A>()
+                            VDomNode<A>()
                                 .Set(p => p.Child1, o1))
                         .Set(p => p.Child2, o2))
                 .Set(p => p.Child2, o3);
 
-            var dom2 = VDomNode.Create<A>()
+            var dom2 = VDomNode<A>()
                 .Set(
                     p => p.Child1,
-                    VDomNode.Create<A>()
+                    VDomNode<A>()
                         .Set(
                             p => p.Child1,
-                            VDomNode.Create<B>()
+                            VDomNode<B>()
                                 .Set(p => p.Child1, new C()))
                         .Set(p => p.Child2, new C()))
                 .Set(p => p.Child2, new C());
@@ -96,7 +98,7 @@ namespace Elmish.Net.Test
             var a1 = (A)v1.Child1;
             var a2 = (A)a1.Child1;
 
-            var fn2 = dom2.MergeWith(Optional(dom1 as IVDomNode));
+            var fn2 = dom2.MergeWith(Optional(dom1 as IVDomNode<int>));
             var v2 = fn2(v1).Node.Some(o => (A)o).None(v1);
 
             v2.Child2.Should().BeSameAs(o3);
@@ -108,25 +110,25 @@ namespace Elmish.Net.Test
         [Fact]
         public void ShouldCreateNewCollectionNodes()
         {
-            var dom1 = VDomNode.Create<A>()
+            var dom1 = VDomNode<A>()
                 .SetChildNodes(
                     p => p.Children,
-                    VDomNode.Create<C>(),
-                    VDomNode.Create<C>());
+                    VDomNode<C>(),
+                    VDomNode<C>());
 
-            var dom2 = VDomNode.Create<A>()
+            var dom2 = VDomNode<A>()
                 .SetChildNodes(
                     p => p.Children,
-                    VDomNode.Create<C>(),
-                    VDomNode.Create<C>(),
-                    VDomNode.Create<C>());
+                    VDomNode<C>(),
+                    VDomNode<C>(),
+                    VDomNode<C>());
 
             var fn1 = dom1.MergeWith(None);
             var v1 = fn1(None).Node.MatchUnsafe(o => (A)o, () => null);
             var c1 = v1.Children[0];
             var c2 = v1.Children[1];
 
-            var fn2 = dom2.MergeWith(Optional(dom1 as IVDomNode));
+            var fn2 = dom2.MergeWith(Optional(dom1 as IVDomNode<int>));
             var v2 = fn2(v1).Node.Some(o => (A)o).None(v1);
 
             v2.Children.Count.Should().Be(3);
@@ -137,26 +139,26 @@ namespace Elmish.Net.Test
         [Fact]
         public void ShouldReplaceExistingCollectionNodes()
         {
-            var dom1 = VDomNode.Create<A>()
+            var dom1 = VDomNode<A>()
                 .SetChildNodes(
                     p => p.Children,
-                    VDomNode.Create<C>(),
-                    VDomNode.Create<B>(),
-                    VDomNode.Create<C>());
+                    VDomNode<C>(),
+                    VDomNode<B>(),
+                    VDomNode<C>());
 
-            var dom2 = VDomNode.Create<A>()
+            var dom2 = VDomNode<A>()
                 .SetChildNodes(
                     p => p.Children,
-                    VDomNode.Create<C>(),
-                    VDomNode.Create<C>(),
-                    VDomNode.Create<C>());
+                    VDomNode<C>(),
+                    VDomNode<C>(),
+                    VDomNode<C>());
 
             var fn1 = dom1.MergeWith(None);
             var v1 = fn1(None).Node.MatchUnsafe(o => (A)o, () => null);
             var c1 = v1.Children[0];
             var c3 = v1.Children[2];
 
-            var fn2 = dom2.MergeWith(Optional(dom1 as IVDomNode));
+            var fn2 = dom2.MergeWith(Optional(dom1 as IVDomNode<int>));
             var v2 = fn2(v1).Node.Some(o => (A)o).None(v1);
 
             v2.Children.Count.Should().Be(3);
@@ -168,23 +170,23 @@ namespace Elmish.Net.Test
         [Fact]
         public void ShouldRemoveExistingCollectionNodes()
         {
-            var dom1 = VDomNode.Create<A>()
+            var dom1 = VDomNode<A>()
                 .SetChildNodes(
                     p => p.Children,
-                    VDomNode.Create<C>(),
-                    VDomNode.Create<C>(),
-                    VDomNode.Create<C>());
+                    VDomNode<C>(),
+                    VDomNode<C>(),
+                    VDomNode<C>());
 
-            var dom2 = VDomNode.Create<A>()
+            var dom2 = VDomNode<A>()
                 .SetChildNodes(
                     p => p.Children,
-                    VDomNode.Create<C>(),
-                    VDomNode.Create<C>());
+                    VDomNode<C>(),
+                    VDomNode<C>());
 
             var fn1 = dom1.MergeWith(None);
             var v1 = fn1(None).Node.MatchUnsafe(o => (A)o, () => null);
 
-            var fn2 = dom2.MergeWith(Optional(dom1 as IVDomNode));
+            var fn2 = dom2.MergeWith(Optional(dom1 as IVDomNode<int>));
             var v2 = fn2(v1).Node.Some(o => (A)o).None(v1);
 
             v2.Children.Count.Should().Be(2);
@@ -193,24 +195,24 @@ namespace Elmish.Net.Test
         [Fact]
         public void ShouldUpdateExistingCollectionNodes()
         {
-            var dom1 = VDomNode.Create<A>()
+            var dom1 = VDomNode<A>()
                 .SetChildNodes(
                     p => p.Children,
-                    VDomNode.Create<B>(),
-                    VDomNode.Create<B>().Set(p => p.Child1, 5),
-                    VDomNode.Create<B>());
+                    VDomNode<B>(),
+                    VDomNode<B>().Set(p => p.Child1, 5),
+                    VDomNode<B>());
 
-            var dom2 = VDomNode.Create<A>()
+            var dom2 = VDomNode<A>()
                 .SetChildNodes(
                     p => p.Children,
-                    VDomNode.Create<B>(),
-                    VDomNode.Create<B>().Set(p => p.Child1, 6),
-                    VDomNode.Create<B>());
+                    VDomNode<B>(),
+                    VDomNode<B>().Set(p => p.Child1, 6),
+                    VDomNode<B>());
 
             var fn1 = dom1.MergeWith(None);
             var v1 = fn1(None).Node.MatchUnsafe(o => (A)o, () => null);
 
-            var fn2 = dom2.MergeWith(Optional(dom1 as IVDomNode));
+            var fn2 = dom2.MergeWith(Optional(dom1 as IVDomNode<int>));
             var v2 = fn2(v1).Node.Some(o => (A)o).None(v1);
 
             ((B)v1.Children[1]).Child1.Should().BeSameAs(((B)v2.Children[1]).Child1);
@@ -222,12 +224,12 @@ namespace Elmish.Net.Test
         {
             var subject = new Subject<int>();
             var items = new List<int>();
-            var dom1 = VDomNode.Create<A>()
-                .Subscribe(a => subject.Subscribe(i => items.Add(i)));
+            var dom1 = VDomNode<A>()
+                .Subscribe(a => subject.AsObservable());
 
             var fn1 = dom1.MergeWith(None);
             subject.OnNext(1);
-            using (fn1(None).Subscriptions)
+            using (fn1(None).Subscriptions.Subscribe(items.Add))
             {
                 subject.OnNext(2);
                 subject.OnNext(3);
@@ -243,15 +245,15 @@ namespace Elmish.Net.Test
         {
             var subject = new Subject<int>();
             var items = new List<int>();
-            var dom1 = VDomNode.Create<A>()
+            var dom1 = VDomNode<A>()
                 .Set(
                     p => p.Child1,
-                    VDomNode.Create<A>()
-                        .Subscribe(a => subject.Subscribe(i => items.Add(i))));
+                    VDomNode<A>()
+                        .Subscribe(a => subject.AsObservable()));
 
             var fn1 = dom1.MergeWith(None);
             subject.OnNext(1);
-            using (fn1(None).Subscriptions)
+            using (fn1(None).Subscriptions.Subscribe(items.Add))
             {
                 subject.OnNext(2);
                 subject.OnNext(3);

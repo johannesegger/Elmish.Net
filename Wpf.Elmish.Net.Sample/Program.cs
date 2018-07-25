@@ -20,6 +20,7 @@ using Microsoft.Maps.MapControl.WPF.Core;
 using Wpf.Elmish.Net.Sample.Utils;
 using static LanguageExt.Prelude;
 using WpfMap = Microsoft.Maps.MapControl.WPF.Map;
+using static Wpf.Elmish.Net.WpfElmishApp<Wpf.Elmish.Net.Sample.Message>;
 
 namespace Wpf.Elmish.Net.Sample
 {
@@ -144,141 +145,151 @@ namespace Wpf.Elmish.Net.Sample
                 });
         }
 
-        private static IVDomNode<Window> View(State state, Dispatch<Message> dispatch)
+        private static IVDomNode<Window, Message> View(State state, Dispatch<Message> dispatch)
         {
             const double tolerancePixels = 10;
 
-            return WpfVDomNode.Create<MetroWindow>()
+            return VWpfNode<MetroWindow>()
                 .Set(p => p.Visibility, Visibility.Visible)
                 .Set(p => p.Title, $"Wpf.Elmish.Net.Sample - {state.Title}")
                 .Set(p => p.Width, 1024)
                 .Set(p => p.Height, 768)
                 .Set(
                     p => p.Content,
-                    WpfVDomNode.Create<StackPanel>()
+                    VWpfNode<StackPanel>()
                         .SetChildNodes(
                             p => p.Children,
-                            WpfVDomNode.Create<StackPanel>()
+                            VWpfNode<StackPanel>()
                                 .Set(p => p.Orientation, Orientation.Horizontal)
                                 .SetChildNodes(
                                     p => p.Children,
-                                    WpfVDomNode.Create<TextBlock>()
+                                    VWpfNode<TextBlock>()
                                         .Set(p => p.Text, "Map title: ")
                                         .Set(p => p.Margin, new Thickness(5, 0, 5, 0))
                                         .Set(p => p.VerticalAlignment, VerticalAlignment.Center),
-                                    WpfVDomNode.Create<TextBox>()
+                                    VWpfNode<TextBox>()
                                         .Set(p => p.Text, state.Title)
                                         .Subscribe(p => p
                                             .TextChangedObservable()
-                                            .Subscribe(e => dispatch(new Message.SetTitleMessage(p.Text)))
+                                            .Select(e => new Message.SetTitleMessage(p.Text))
                                         )
                                 ),
-                            WpfVDomNode.Create<WpfMap>()
+                            VWpfNode<WpfMap>()
                                 .Set(
                                     p => p.CredentialsProvider,
                                     new ApplicationIdCredentialsProvider("AiYVQeyKth-2j8dkcIPe58rz3zxNt6Hw-ydHJhZLfklNfZPrWM9HlBr6LTnIgy65"),
                                     EqualityComparer.Create((CredentialsProvider p) => 1))
-                                .Set(p => p.Mode, WpfVDomNode.Create<AerialMode>())
+                                .Set(p => p.Mode, VWpfNode<AerialMode>())
                                 .Set(p => p.Center, state.Center.ToLocation())
                                 .Set(p => p.ZoomLevel, state.MapZoomLevel)
                                 .Set(p => p.Height, 500)
                                 .Set(p => p.Culture, "de-AT")
                                 .SetChildNodes(
                                     p => p.Children,
-                                    WpfVDomNode.Create<MapLayer>()
+                                    VWpfNode<MapLayer>()
                                         .SetChildNodes(
                                             p => p.Children,
                                             state.Areas
                                                 .SelectMany((area, i) => AreaView(i, area, dispatch))
                                         )
                                 )
-                                .Subscribe(map =>
-                                {
-                                    var d = new CompositeDisposable();
-
-                                    if (!state.Areas.SelectMany(p => p.Coordinates).Any(p => p.IsDragging))
+                                .Subscribe(
+                                    p => new { Element = p, IsDragging = state.Areas.SelectMany(q => q.Coordinates).Any(q => q.IsDragging) },
+                                    p =>
                                     {
-                                        map
-                                            .PreviewMouseDownObservable()
-                                            .Select(e => e.EventArgs.GetPosition(map))
-                                            .Choose(point => TryGetEdgePoint(map, point, tolerancePixels))
-                                            .Select(((int areaIndex, int coordinateIndex) p) =>
-                                                new Message.BeginMoveLocationMessage(
-                                                    p.areaIndex,
-                                                    p.coordinateIndex
-                                                )
-                                            )
-                                            .Subscribe(m => dispatch(m))
-                                            .DisposeWith(d);
+                                        if (!p.IsDragging)
+                                        {
+                                            return p.Element
+                                                .PreviewMouseDownObservable()
+                                                .Select(e => e.EventArgs.GetPosition(p.Element))
+                                                .Choose(point => TryGetEdgePoint(p.Element, point, tolerancePixels))
+                                                .Select(((int areaIndex, int coordinateIndex) q) =>
+                                                    (Message)new Message.BeginMoveLocationMessage(
+                                                        q.areaIndex,
+                                                        q.coordinateIndex
+                                                    )
+                                                );
+                                        }
+                                        return Observable.Empty<Message>();
                                     }
-
-                                    var definingAreaIndex = state.Areas.FindIndex(a => !a.IsDefined);
-                                    if (definingAreaIndex >= 0)
+                                )
+                                .Subscribe(
+                                    p =>
                                     {
-                                        var definingArea = state.Areas[definingAreaIndex];
-                                        map
-                                            .PreviewMouseDownObservable()
-                                            .Select(e => e.EventArgs.GetPosition(map))
-                                            .Subscribe(position =>
+                                        var definingAreaIndex = state.Areas.FindIndex(a => !a.IsDefined);
+                                        return new
+                                        {
+                                            Element = p,
+                                            DefiningAreaIndex = definingAreaIndex,
+                                            DefiningArea = definingAreaIndex >= 0 ? Some(state.Areas[definingAreaIndex]) : None
+                                        };
+                                    },
+                                    p =>
+                                    {
+                                        return p.DefiningArea
+                                            .Some(definingArea =>
                                             {
-                                                var isClosing =
-                                                    definingArea.Coordinates.Count > 0
-                                                    && definingArea.Coordinates[0].Coordinate.ToLocation().ToViewportPoint(map).DistanceTo(position) < tolerancePixels;
-                                                if (isClosing)
-                                                {
-                                                    dispatch(new Message.EndDefineAreaMessage(definingAreaIndex));
-                                                }
-                                                else
-                                                {
-                                                    var message = new Message.InsertLocationMessage(
-                                                        definingAreaIndex,
-                                                        definingArea.Coordinates.Count,
-                                                        map.ViewportPointToLocation(position).ToCoordinate());
-                                                    dispatch(message);
-                                                }
+                                                return p.Element
+                                                    .PreviewMouseDownObservable()
+                                                    .Select(e => e.EventArgs.GetPosition(p.Element))
+                                                    .Select(position =>
+                                                    {
+                                                        var isClosing =
+                                                            definingArea.Coordinates.Count > 0
+                                                            && definingArea.Coordinates[0].Coordinate.ToLocation().ToViewportPoint(p.Element).DistanceTo(position) < tolerancePixels;
+                                                        if (isClosing)
+                                                        {
+                                                            return (Message)new Message.EndDefineAreaMessage(p.DefiningAreaIndex);
+                                                        }
+                                                        else
+                                                        {
+                                                            return new Message.InsertLocationMessage(
+                                                                p.DefiningAreaIndex,
+                                                                definingArea.Coordinates.Count,
+                                                                p.Element.ViewportPointToLocation(position).ToCoordinate());
+                                                        }
+                                                    });
                                             })
-                                            .DisposeWith(d);
+                                            .None(Observable.Empty<Message>());
                                     }
-
-                                    return d;
-                                })
+                                )
                                 .Subscribe(map => map
                                     .PreviewMouseLeftButtonDownObservable()
                                     .Where(e => e.EventArgs.ClickCount == 2)
                                     .Do(e => e.EventArgs.Handled = true)
                                     .Select(mouseMoveEvent => mouseMoveEvent.EventArgs.GetPosition(map))
                                     .Choose(point => TryGetVertexPoint(map, point, tolerancePixels))
-                                    .Subscribe(((int areaIndex, int coordinateIndex, Coordinate coordinate) q) =>
-                                        dispatch(new Message.InsertLocationMessage(q.areaIndex, q.coordinateIndex, q.coordinate))
+                                    .Select(((int areaIndex, int coordinateIndex, Coordinate coordinate) q) =>
+                                        new Message.InsertLocationMessage(q.areaIndex, q.coordinateIndex, q.coordinate)
                                     )
                                 )
                                 .Subscribe(map => map
                                     .MouseRightButtonDownObservable()
                                     .Select(mouseMoveEvent => mouseMoveEvent.EventArgs.GetPosition(map))
                                     .Choose(point => TryGetEdgePoint(map, point, tolerancePixels))
-                                    .Subscribe(((int areaIndex, int coordinateIndex) q) =>
-                                        dispatch(new Message.RemoveLocationMessage(q.areaIndex, q.coordinateIndex))
+                                    .Select(((int areaIndex, int coordinateIndex) q) =>
+                                        new Message.RemoveLocationMessage(q.areaIndex, q.coordinateIndex)
                                     )
                                 )
-                                .Subscribe(p =>
-                                    Observable
+                                .Subscribe(
+                                    p => new { Element = p, state.MapZoomLevel, state.Center },
+                                    p => Observable
                                         .FromEventPattern<MapEventArgs>(
-                                            h => p.ViewChangeEnd += h,
-                                            h => p.ViewChangeEnd -= h
+                                            h => p.Element.ViewChangeEnd += h,
+                                            h => p.Element.ViewChangeEnd -= h
                                         )
-                                        .Select(_ => new Message.ChangeMapViewMessage(p.ZoomLevel, p.Center.ToCoordinate()))
-                                        .Where(m => m.ZoomLevel != state.MapZoomLevel || m.Center != state.Center)
-                                        .Subscribe(m => dispatch(m))
+                                        .Select(_ => new Message.ChangeMapViewMessage(p.Element.ZoomLevel, p.Element.Center.ToCoordinate()))
+                                        .Where(m => m.ZoomLevel != p.MapZoomLevel || !Equals(m.Center, p.Center))
                                 ),
-                            WpfVDomNode.Create<DataGrid>()
+                            VWpfNode<DataGrid>()
                                 .Set(p => p.AutoGenerateColumns, false)
                                 .Set(p => p.CanUserAddRows, true)
                                 .Set(p => p.SelectedIndex, state.Areas.FindIndex(area => area.IsSelected))
                                 .SetChildNodes(p => p.Columns,
-                                    WpfVDomNode.Create<DataGridTextColumn>()
+                                    VWpfNode<DataGridTextColumn>()
                                         .Set(p => p.Header, "Title")
                                         .Set(p => p.Binding, new Binding(nameof(AreaInformation.Title))),
-                                    WpfVDomNode.Create<DataGridTextColumn>()
+                                    VWpfNode<DataGridTextColumn>()
                                         .Set(p => p.Header, "Number of edges")
                                         .Set(p => p.Binding, new Binding(nameof(AreaInformation.EdgeCount)))
                                 )
@@ -290,35 +301,30 @@ namespace Wpf.Elmish.Net.Sample
                                 .Subscribe(
                                     p => p.SelectionChangedObservable()
                                         .Select(q => q.EventArgs.AddedItems.OfType<AreaInformation>().FirstOrDefault())
-                                        .Subscribe(q => dispatch(new Message.SelectAreaMessage(q?.Index ?? -1)))
+                                        .Select(q => new Message.SelectAreaMessage(q?.Index ?? -1))
                                 )
                                 .Subscribe(
                                     p => p
                                         .RowEditEndingObservable()
-                                        .Subscribe(e =>
+                                        // WPF doesn't contain a `RowEditEnded` event
+                                        // so the common suggestion is to wait until
+                                        // the data context is updated before using it.
+                                        // see e.g. item 5 in https://blogs.msdn.microsoft.com/vinsibal/2009/04/14/5-more-random-gotchas-with-the-wpf-datagrid/
+                                        .ObserveOnDispatcher(DispatcherPriority.Background)
+                                        .Select(e =>
                                         {
-                                            // WPF doesn't contain a `RowEditEnded` event
-                                            // so the common suggestion is to wait until
-                                            // the data context is updated before using it.
-                                            // see e.g. item 5 in https://blogs.msdn.microsoft.com/vinsibal/2009/04/14/5-more-random-gotchas-with-the-wpf-datagrid/
-                                            Application.Current.Dispatcher.BeginInvoke(
-                                                new Action(() =>
-                                                {
-                                                    var area = (AreaInformation)e.EventArgs.Row.Item;
-                                                    var message =
-                                                        area.IsNewArea
-                                                        ? (Message)new Message.AddAreaMessage(area.Title)
-                                                        : new Message.UpdateAreaTitleMessage(area.Index, area.Title);
-                                                    dispatch(message);
-                                                }),
-                                                DispatcherPriority.Background);
+                                            var area = (AreaInformation)e.EventArgs.Row.Item;
+                                            return
+                                                area.IsNewArea
+                                                ? (Message)new Message.AddAreaMessage(area.Title)
+                                                : new Message.UpdateAreaTitleMessage(area.Index, area.Title);
                                         })
                                 )
                         )
                 );
         }
 
-        private static IEnumerable<IVDomNode> AreaView(
+        private static IEnumerable<IVDomNode<Message>> AreaView(
             int areaIndex,
             Area area,
             Dispatch<Message> dispatch)
@@ -332,10 +338,10 @@ namespace Wpf.Elmish.Net.Sample
             var color = area.IsSelected ? Colors.OrangeRed : Colors.PaleVioletRed;
 
             var node = area.IsDefined
-                ? (IVDomNode<MapShapeBase>)WpfVDomNode.Create<MapPolygon>()
-                : WpfVDomNode.Create<MapPolyline>();
+                ? (IVDomNode<MapShapeBase, Message>)VWpfNode<MapPolygon>()
+                : VWpfNode<MapPolyline>();
             yield return node
-                .Set(p => p.Stroke, WpfVDomNode.Create<SolidColorBrush>().Set(p => p.Color, color))
+                .Set(p => p.Stroke, VWpfNode<SolidColorBrush>().Set(p => p.Color, color))
                 .Set(p => p.StrokeThickness, 3)
                 .Set(p => p.StrokeLineJoin, PenLineJoin.Round)
                 .Set(
@@ -347,51 +353,49 @@ namespace Wpf.Elmish.Net.Sample
 
             var edgeWidth = 10;
             var edges = area.Coordinates
-                .Select((coord, locationIndex) => WpfVDomNode.Create<Ellipse>()
+                .Select((coord, locationIndex) => VWpfNode<Ellipse>()
                     .Set(p => p.Width, edgeWidth)
                     .Set(p => p.Height, edgeWidth)
-                    .Set(p => p.Fill, WpfVDomNode.Create<SolidColorBrush>().Set(p => p.Color, color))
+                    .Set(p => p.Fill, VWpfNode<SolidColorBrush>().Set(p => p.Color, color))
                     .Set(p => p.Opacity, 0.9)
                     .Attach(MapLayer.PositionProperty, coord.Coordinate.ToLocation())
                     .Attach(MapLayer.PositionOffsetProperty, new Point(-edgeWidth / 2.0, -edgeWidth / 2.0))
-                    .Subscribe(p =>
-                    {
-                        var d = new CompositeDisposable();
-
-                        if (coord.IsDragging)
+                    .Subscribe(
+                        p => new { Map = p.TryFindParent<WpfMap>(), coord.IsDragging, AreaIndex = areaIndex, LocationIndex = locationIndex },
+                        p =>
                         {
-                            var map = p.TryFindParent<WpfMap>();
-                            map
-                                .PreviewMouseMoveObservable()
-                                .Do(mouseMoveEvent => mouseMoveEvent.EventArgs.Handled = true)
-                                .Select(mouseMoveEvent => map.ViewportPointToLocation(mouseMoveEvent.EventArgs.GetPosition(map)))
-                                .Where(location => location != null)
-                                .Select(location =>
-                                    new Message.MoveLocationMessage(
-                                        areaIndex,
-                                        locationIndex,
-                                        location.ToCoordinate()
-                                    )
-                                )
-                                .Subscribe(m => dispatch(m))
-                                .DisposeWith(d);
+                            if (p.IsDragging)
+                            {
+                                var obs1 = p.Map
+                                    .PreviewMouseMoveObservable()
+                                    .Do(mouseMoveEvent => mouseMoveEvent.EventArgs.Handled = true)
+                                    .Select(mouseMoveEvent => p.Map.ViewportPointToLocation(mouseMoveEvent.EventArgs.GetPosition(p.Map)))
+                                    .Where(location => location != null)
+                                    .Select(location =>
+                                        (Message)new Message.MoveLocationMessage(
+                                            areaIndex,
+                                            locationIndex,
+                                            location.ToCoordinate()
+                                        )
+                                    );
 
-                            map
-                                .MouseUpObservable()
-                                .Select(_ => new Message.EndMoveLocationMessage(areaIndex, locationIndex))
-                                .Subscribe(m => dispatch(m))
-                                .DisposeWith(d);
+                                var obs2 = p.Map
+                                    .MouseUpObservable()
+                                    .Select(_ => new Message.EndMoveLocationMessage(areaIndex, locationIndex));
+
+                                return Observable.Merge(obs1, obs2);
+                            }
+
+                            return Observable.Empty<Message>();
                         }
-
-                        return d;
-                    })
+                    )
                 );
             foreach (var edge in edges)
             {
                 yield return edge;
             }
 
-            yield return WpfVDomNode.Create<Pushpin>()
+            yield return VWpfNode<Pushpin>()
                 .Set(p => p.Location, areaCenter.ToLocation())
                 .Set(p => p.Content, area.Note.Substring(0, 1))
                 .Attach(ToolTipService.ToolTipProperty, area.Note);

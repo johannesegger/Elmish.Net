@@ -6,8 +6,14 @@ using System.Reactive.Disposables;
 
 namespace Elmish.Net
 {
+    public interface ISub<out TMessage>
+    {
+        object Key { get; }
+        IDisposable Subscribe(Dispatch<TMessage> dispatch);
+    }
+
     [Equals]
-    public class Sub<TMessage>
+    public class Sub<TMessage> : ISub<TMessage>
     {
         private readonly Func<Dispatch<TMessage>, IDisposable> subscribe;
 
@@ -32,21 +38,29 @@ namespace Elmish.Net
             return new Sub<TMessage>(null, _ => Disposable.Empty);
         }
 
-        public static Sub<TMessage> Batch<TMessage>(IReadOnlyCollection<Sub<TMessage>> subs)
+        public static Sub<TMessage> Batch<TMessage>(IReadOnlyCollection<ISub<TMessage>> subs)
         {
             return new Sub<TMessage>(
                 subs.Select(s => s.Key),
                 dispatch => new CompositeDisposable(subs.Select(s => s.Subscribe(dispatch))));
         }
 
-        public static Sub<TMessage> Batch<TMessage>(params Sub<TMessage>[] subs)
+        public static Sub<TMessage> Batch<TMessage>(IEnumerable<ISub<TMessage>> subs)
         {
-            return Batch((IReadOnlyCollection<Sub<TMessage>>)subs);
+            return Batch(subs.ToList());
         }
 
-        public static Sub<TMessage> Create<TMessage, TKey>(TKey key, Func<TKey, Dispatch<TMessage>, IDisposable> subscribe)
+        public static Sub<TMessage> Batch<TMessage>(params ISub<TMessage>[] subs)
         {
-            return new Sub<TMessage>(key, dispatch => subscribe(key, dispatch));
+            return Batch((IReadOnlyCollection<ISub<TMessage>>)subs);
+        }
+
+        public static Sub<TMessage> Create<TMessage, TKey>(TKey key, Func<TKey, IObservable<TMessage>> observableFactory)
+        {
+            return new Sub<TMessage>(
+                key,
+                dispatch => observableFactory(key)
+                    .Subscribe(p => dispatch(p)));
         }
     }
 }

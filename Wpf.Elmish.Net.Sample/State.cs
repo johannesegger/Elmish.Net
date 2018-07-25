@@ -23,6 +23,7 @@ namespace Wpf.Elmish.Net.Sample
         public ImmutableList<Area> Areas { get; }
     }
 
+    [Equals]
     public class Area
     {
         public static readonly Area Empty = new Area(new DraggableCoordinate[0], "", isSelected: false, isDefined: false);
@@ -59,6 +60,7 @@ namespace Wpf.Elmish.Net.Sample
         public double Longitude { get; }
     }
 
+    [Equals]
     public class DraggableCoordinate
     {
         public DraggableCoordinate(Coordinate coordinate, bool isDragging)

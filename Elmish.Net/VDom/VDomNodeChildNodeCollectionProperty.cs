@@ -10,25 +10,25 @@ using static LanguageExt.Prelude;
 
 namespace Elmish.Net.VDom
 {
-    public class VDomNodeChildNodeCollectionProperty<TParent> : IVDomNodeProperty<TParent, IImmutableList<IVDomNode>>
+    public class VDomNodeChildNodeCollectionProperty<TParent, TMessage> : IVDomNodeProperty<TParent, TMessage, IImmutableList<IVDomNode<TMessage>>>
     {
         private readonly PropertyInfo propertyInfo;
 
         public VDomNodeChildNodeCollectionProperty(
             PropertyInfo propertyInfo,
-            IImmutableList<IVDomNode> value)
+            IImmutableList<IVDomNode<TMessage>> value)
         {
             this.propertyInfo = propertyInfo;
             Value = value;
         }
 
-        public IImmutableList<IVDomNode> Value { get; }
+        public IImmutableList<IVDomNode<TMessage>> Value { get; }
 
-        public Func<TParent, IDisposable> MergeWith(IVDomNodeProperty property)
+        public Func<TParent, ISub<TMessage>> MergeWith(IVDomNodeProperty property)
         {
             var listProperty = Optional(property)
                 // Use IReadOnlyList<T> instead of IImmutableList<T> because T is covariant for IReadOnlyList
-                .TryCast<IVDomNodeProperty<TParent, IReadOnlyList<object>>>(); // can't use IReadOnlyList<IVDomNode<T>> because T is not covariant for IVDomNode
+                .TryCast<IVDomNodeProperty<TParent, TMessage, IReadOnlyList<object>>>(); // can't use IReadOnlyList<IVDomNode<T, TMessage>> because T is not covariant for IVDomNode
 
             var items = listProperty
                 .Some(oldProperty => oldProperty.Value)
@@ -38,8 +38,8 @@ namespace Elmish.Net.VDom
                 .Take(items.Count)
                 .Select((value, i) =>
                 {
-                    var apply = value.MergeWith(Optional(items[i] as IVDomNode));
-                    return new Func<System.Collections.IList, IDisposable>(o =>
+                    var apply = value.MergeWith(Optional(items[i] as IVDomNode<TMessage>));
+                    return new Func<System.Collections.IList, ISub<TMessage>>(o =>
                     {
                         var (p, d) = apply(o[i]);
                         p
@@ -57,7 +57,7 @@ namespace Elmish.Net.VDom
                 .Select(value =>
                 {
                     var apply = value.MergeWith(None);
-                    return new Func<System.Collections.IList, IDisposable>(o =>
+                    return new Func<System.Collections.IList, ISub<TMessage>>(o =>
                     {
                         var (p, d) = apply(None);
                         p
@@ -70,10 +70,10 @@ namespace Elmish.Net.VDom
                 .Skip(Value.Count)
                 .Select(_ =>
                 {
-                    return new Func<System.Collections.IList, IDisposable>(o =>
+                    return new Func<System.Collections.IList, ISub<TMessage>>(o =>
                     {
                         o.RemoveAt(o.Count - 1);
-                        return Disposable.Empty;
+                        return Sub.None<TMessage>();
                     });
                 });
 
@@ -81,10 +81,10 @@ namespace Elmish.Net.VDom
                 .Concat(removeActions)
                 .Concat(addActions)
                 .ToList();
-            var act = new Func<System.Collections.IList, IDisposable>(o =>
-                new CompositeDisposable(actions.Select(a => a(o))));
+            var act = new Func<System.Collections.IList, ISub<TMessage>>(o =>
+                Sub.Batch(actions.Select(a => a(o))));
 
-            return new Func<TParent, IDisposable>(o =>
+            return new Func<TParent, ISub<TMessage>>(o =>
             {
                 return act((System.Collections.IList)propertyInfo.GetValue(o));
             });
@@ -92,7 +92,7 @@ namespace Elmish.Net.VDom
 
         public bool CanMergeWith(IVDomNodeProperty property)
         {
-            return property is VDomNodeChildNodeCollectionProperty<TParent> p
+            return property is VDomNodeChildNodeCollectionProperty<TParent, TMessage> p
                 && Equals(propertyInfo, p.propertyInfo);
         }
     }

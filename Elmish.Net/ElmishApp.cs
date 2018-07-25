@@ -20,7 +20,7 @@ namespace Elmish.Net
             IObservable<Unit> requestAnimationFrame,
             (TState State, Cmd<TMessage> Cmd) init,
             Func<TMessage, TState, (TState, Cmd<TMessage>)> update,
-            Func<TState, Dispatch<TMessage>, IVDomNode<TViewNode>> view,
+            Func<TState, Dispatch<TMessage>, IVDomNode<TViewNode, TMessage>> view,
             Func<TState, Sub<TMessage>> subscriptions,
             IScheduler dispatcherScheduler,
             Expression<Func<TViewNode>> rootNode)
@@ -59,9 +59,9 @@ namespace Elmish.Net
 
             // Merge current VDom with base VDom
             // On requestAnimationFrame use latest merger and set VDom as base VDom
-            IVDomNode lastDom = null;
-            IVDomNode<TViewNode> currentDom = null;
-            MergeResult currentMerge = null;
+            IVDomNode<TMessage> lastDom = null;
+            IVDomNode<TViewNode, TMessage> currentDom = null;
+            MergeResult<TMessage> currentMerge = null;
             var gate = new object();
             var mergeResults = obs
                 .Select(updateResult => updateResult.State)
@@ -99,7 +99,7 @@ namespace Elmish.Net
                     var oldNode = getter();
                     viewSubscriptionsDisposable.Disposable = Disposable.Empty;
                     var (newNode, subscription) = merge(oldNode);
-                    viewSubscriptionsDisposable.Disposable = subscription;
+                    viewSubscriptionsDisposable.Disposable = subscription.Subscribe(dispatch); // TODO fix merging subscriptions
                     newNode.TryCast<TViewNode>().IfSome(setter);
                 })
                 .DisposeWith(d);
@@ -111,7 +111,7 @@ namespace Elmish.Net
             IObservable<Unit> requestAnimationFrame,
             (TState State, Cmd<TMessage> Cmd) init,
             Func<TMessage, TState, (TState, Cmd<TMessage>)> update,
-            Func<TState, Dispatch<TMessage>, IVDomNode<TViewNode>> view,
+            Func<TState, Dispatch<TMessage>, IVDomNode<TViewNode, TMessage>> view,
             IScheduler dispatcherScheduler,
             Expression<Func<TViewNode>> rootNode)
         {

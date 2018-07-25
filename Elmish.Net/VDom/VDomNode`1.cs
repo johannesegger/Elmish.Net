@@ -9,16 +9,16 @@ using static LanguageExt.Prelude;
 
 namespace Elmish.Net.VDom
 {
-    public class VDomNode<T> : IVDomNode<T>
+    public class VDomNode<T, TMessage> : IVDomNode<T, TMessage>
     {
         private readonly Func<T> factory;
-        private readonly IImmutableList<IVDomNodeProperty<T>> properties;
-        private readonly Func<T, IDisposable> subscribe;
+        private readonly IImmutableList<IVDomNodeProperty<T, TMessage>> properties;
+        private readonly Func<T, ISub<TMessage>> subscribe;
 
         public VDomNode(
             Func<T> factory,
-            IImmutableList<IVDomNodeProperty<T>> properties,
-            Func<T, IDisposable> subscribe)
+            IImmutableList<IVDomNodeProperty<T, TMessage>> properties,
+            Func<T, ISub<TMessage>> subscribe)
         {
             this.factory = factory;
             this.properties = properties;
@@ -27,27 +27,29 @@ namespace Elmish.Net.VDom
 
         public IReadOnlyCollection<IVDomNodeProperty> Properties => properties;
 
-        public IVDomNode<T> AddProperty(IVDomNodeProperty<T> property)
+        public IVDomNode<T, TMessage> AddProperty(IVDomNodeProperty<T, TMessage> property)
         {
-            return new VDomNode<T>(factory, properties.Add(property), subscribe);
+            return new VDomNode<T, TMessage>(factory, properties.Add(property), subscribe);
         }
 
-        public IVDomNode<T> AddSubscription(Func<T, IDisposable> fn)
+        public IVDomNode<T, TMessage> AddSubscription(Func<T, ISub<TMessage>> fn)
         {
-            return new VDomNode<T>(factory, properties, o => new CompositeDisposable(subscribe(o), fn(o)));
+            return new VDomNode<T, TMessage>(factory, properties, o => Sub.Batch(subscribe(o), fn(o)));
         }
 
-        MergeResult IVDomNode.MergeWith(Option<IVDomNode> node)
+        MergeResult<TMessage> IVDomNode<TMessage>.MergeWith(Option<IVDomNode<TMessage>> node)
         {
-            var fn = MergeWith(node.TryCast<IVDomNode<T>>());
-            return o =>
+            var fn = MergeWith(node.TryCast<IVDomNode<T, TMessage>>());
+            return o => 
             {
                 var (r, d) = fn(o.TryCast<T>());
+                // Need to explicitely cast Option<T> to Option<object>
+                // Otherwise it is implicitely cast to Option<Option<T>>
                 return (r.TryCast<object>(), d);
             };
         }
 
-        public MergeResult<T> MergeWith(Option<IVDomNode<T>> node)
+        public MergeResult<TMessage, T> MergeWith(Option<IVDomNode<T, TMessage>> node)
         {
             var nodeProperties = node
                 .Some(p => p.Properties)
@@ -56,28 +58,31 @@ namespace Elmish.Net.VDom
                 .Select(prop =>
                 {
                     var existingProp = nodeProperties
-                        .OfType<IVDomNodeProperty<T>>()
+                        .OfType<IVDomNodeProperty<T, TMessage>>()
                         .FirstOrDefault(p => p.CanMergeWith(prop));
                     var apply = prop.MergeWith(existingProp);
-                    return new Func<T, IDisposable>(o => apply(o));
+                    return new Func<T, ISub<TMessage>>(o => apply(o));
                 })
                 .ToList();
-            var act = new Func<T, IDisposable>(o => new CompositeDisposable(acts.Select(a => a(o))));
+            var act = new Func<T, ISub<TMessage>>(o => Sub.Batch(acts.Select(a => a(o))));
             return node
-                .Some(n => new MergeResult<T>(o =>
+                .Some(n => new MergeResult<TMessage, T>(o =>
                 {
-                    var d = new CompositeDisposable();
-                    o.Some(act).None(Disposable.Empty).DisposeWith(d);
-                    o.Some(subscribe).None(Disposable.Empty).DisposeWith(d);
-                    return (None, d);
+                    var sub = Sub.Batch(
+                        o.Some(act).None(Sub.None<TMessage>()),
+                        o.Some(subscribe).None(Sub.None<TMessage>())
+                    );
+                    return (None, sub);
                 }))
-                .None(new MergeResult<T>(_ =>
+                .None(new MergeResult<TMessage, T>(_ =>
                 {
                     var t = factory();
-                    var d = new CompositeDisposable();
-                    subscribe(t).DisposeWith(d);
-                    act(t).DisposeWith(d);
-                    return (t, d);
+                    var sub = Sub.Batch(
+                        subscribe(t),
+                        act(t)
+                    );
+                    var result = (Some(t), sub);
+                    return result;
                 }));
         }
     }

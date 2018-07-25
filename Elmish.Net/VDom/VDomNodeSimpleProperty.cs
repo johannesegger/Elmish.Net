@@ -8,7 +8,7 @@ using static LanguageExt.Prelude;
 
 namespace Elmish.Net.VDom
 {
-    public class VDomNodeSimpleProperty<TParent, TValue> : IVDomNodeProperty<TParent, TValue>
+    public class VDomNodeSimpleProperty<TParent, TMessage, TValue> : IVDomNodeProperty<TParent, TMessage, TValue>
     {
         private readonly PropertyInfo propertyInfo;
         private readonly IEqualityComparer<TValue> equalityComparer;
@@ -22,26 +22,26 @@ namespace Elmish.Net.VDom
 
         public TValue Value { get; }
 
-        public Func<TParent, IDisposable> MergeWith(IVDomNodeProperty property)
+        public Func<TParent, ISub<TMessage>> MergeWith(IVDomNodeProperty property)
         {
             return Optional(property)
-                .TryCast<IVDomNodeProperty<TParent, TValue>>()
+                .TryCast<IVDomNodeProperty<TParent, TMessage, TValue>>()
                 .Bind(p =>
                     equalityComparer.Equals(p.Value, Value)
                     ? Some(Unit.Default)
                     : None
                 )
-                .Some(_ => new Func<TParent, IDisposable>(o => Disposable.Empty))
-                .None(() => new Func<TParent, IDisposable>(o =>
+                .Some(_ => new Func<TParent, ISub<TMessage>>(o => Sub.None<TMessage>()))
+                .None(() => new Func<TParent, ISub<TMessage>>(o =>
                 {
                     propertyInfo.SetValue(o, Value);
-                    return Disposable.Empty;
+                    return Sub.None<TMessage>();
                 }));
         }
 
         public bool CanMergeWith(IVDomNodeProperty property)
         {
-            return property is VDomNodeSimpleProperty<TParent, TValue> p
+            return property is VDomNodeSimpleProperty<TParent, TMessage, TValue> p
                 && Equals(propertyInfo, p.propertyInfo);
         }
     }

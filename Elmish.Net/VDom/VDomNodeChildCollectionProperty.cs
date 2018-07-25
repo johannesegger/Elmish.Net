@@ -11,7 +11,7 @@ using static LanguageExt.Prelude;
 namespace Elmish.Net.VDom
 {
     // TODO merge with VDomNodeChildNodeCollectionProperty<T>?
-    public class VDomNodeChildCollectionProperty<TParent, TValue> : IVDomNodeProperty<TParent, IImmutableList<TValue>>
+    public class VDomNodeChildCollectionProperty<TParent, TMessage, TValue> : IVDomNodeProperty<TParent, TMessage, IImmutableList<TValue>>
     {
         private readonly PropertyInfo propertyInfo;
         private readonly IEqualityComparer<TValue> equalityComparer;
@@ -28,11 +28,11 @@ namespace Elmish.Net.VDom
 
         public IImmutableList<TValue> Value { get; }
 
-        public Func<TParent, IDisposable> MergeWith(IVDomNodeProperty property)
+        public Func<TParent, ISub<TMessage>> MergeWith(IVDomNodeProperty property)
         {
             var items = Optional(property)
                 // Use IReadOnlyList<T> instead of IImmutableList<T> because T is covariant for IReadOnlyList
-                .TryCast<IVDomNodeProperty<TParent, IReadOnlyList<object>>>()
+                .TryCast<IVDomNodeProperty<TParent, TMessage, IReadOnlyList<object>>>()
                 .Some(oldProperty => oldProperty.Value)
                 .None(() => ImmutableList<object>.Empty);
 
@@ -73,16 +73,16 @@ namespace Elmish.Net.VDom
                 .Concat(addActions)
                 .ToList();
             var act = new Action<System.Collections.IList>(o => actions.ForEach(a => a(o)));
-            return new Func<TParent, IDisposable>(o =>
+            return new Func<TParent, ISub<TMessage>>(o =>
             {
                 act((System.Collections.IList)propertyInfo.GetValue(o));
-                return Disposable.Empty;
+                return Sub.None<TMessage>();
             });
         }
 
         public bool CanMergeWith(IVDomNodeProperty property)
         {
-            return property is VDomNodeChildCollectionProperty<TParent, TValue> p
+            return property is VDomNodeChildCollectionProperty<TParent, TMessage, TValue> p
                 && Equals(propertyInfo, p.propertyInfo);
         }
     }
