@@ -1,10 +1,12 @@
-﻿namespace Elmish.Net.Utils
+﻿using System;
+
+namespace Elmish.Net.Utils
 {
     internal static class StringExtensions
     {
         public static string FirstToUpper(this string text)
         {
-            if (text.Length == 0)
+            if (String.IsNullOrEmpty(text))
             {
                 return text;
             }
