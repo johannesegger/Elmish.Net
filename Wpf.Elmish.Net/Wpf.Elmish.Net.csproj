@@ -7,7 +7,7 @@
     <Title>Wpf.Elmish.Net</Title>
     <Authors>JEgger</Authors>
     <Description>Elm architecture for WPF apps. 100% less XAML.</Description>
-    <PackageLicenseUrl>https://github.com/johannesegger/Elmish.Net/blob/master/LICENSE</PackageLicenseUrl>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageProjectUrl>https://github.com/johannesegger/Elmish.Net</PackageProjectUrl>
     <PackageTags>Wpf;Elm;Elmish</PackageTags>
     <IncludeSymbols>true</IncludeSymbols>
