@@ -62,8 +62,7 @@ namespace Elmish.Net
                     var parent = expr.Expression;
 
                     var ctor = parent.Type
-                        .GetConstructors()
-                        .Where(c => !c.IsStatic)
+                        .GetConstructors(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
                         .OrderBy(c =>
                         {
                             if (c.IsPublic) return 0;
