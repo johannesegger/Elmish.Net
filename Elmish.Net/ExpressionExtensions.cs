@@ -61,12 +61,21 @@ namespace Elmish.Net
                     var expr = (MemberExpression)p.expr;
                     var parent = expr.Expression;
 
-                    var ctor = parent.Type.GetConstructors().Single(c => c.IsPublic && !c.IsStatic);
+                    var ctor = parent.Type
+                        .GetConstructors()
+                        .Where(c => !c.IsStatic)
+                        .OrderBy(c =>
+                        {
+                            if (c.IsPublic) return 0;
+                            if (c.IsFamily) return 1;
+                            return 2;
+                        })
+                        .FirstOrDefault() ?? throw new Exception($"Can't construct type {parent.Type}");
                     var arguments = ctor
                         .GetParameters()
                         .Select(parameter => parent.Type.GetProperty(
                             parameter.Name.FirstToUpper(),
-                            BindingFlags.Public | BindingFlags.Instance))
+                            BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Instance))
                         .Select(prop => prop.Name.Equals(expr.Member.Name)
                             ? p.value
                             : Expression.Property(parent, prop))
