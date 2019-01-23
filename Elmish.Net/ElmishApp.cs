@@ -53,7 +53,7 @@ namespace Elmish.Net
                     if (!Equals(b[0].Key, b[1].Key))
                     {
                         subscriptionDisposable.Disposable = Disposable.Empty;
-                        subscriptionDisposable.Disposable = b[1].Subscribe(dispatcherScheduler, dispatch);
+                        subscriptionDisposable.Disposable = b[1].Subscribe(dispatch);
                     }
                 })
                 .DisposeWith(d);
@@ -100,7 +100,7 @@ namespace Elmish.Net
                     var oldNode = getter();
                     viewSubscriptionsDisposable.Disposable = Disposable.Empty;
                     var (newNode, subscription) = merge(oldNode);
-                    viewSubscriptionsDisposable.Disposable = subscription.Subscribe(dispatcherScheduler, dispatch); // TODO fix merging subscriptions
+                    viewSubscriptionsDisposable.Disposable = subscription.Subscribe(dispatch); // TODO fix merging subscriptions
                     newNode.TryCast<TViewNode>().IfSome(setter);
                 })
                 .DisposeWith(d);
