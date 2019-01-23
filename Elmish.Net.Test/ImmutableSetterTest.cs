@@ -68,6 +68,26 @@ namespace Elmish.Net.Test
             result.B.CList.Select(c => c.Value).Should().Equal("0", "11", "2");
         }
 
+        [Fact]
+        public void ShouldWorkWithSingleInternalConstructor()
+        {
+            Expression<Func<TypeWithSingleInternalConstructor, string>> expr = o => o.Value;
+            var setter = expr.CreateImmutableSetter();
+            var obj = new TypeWithSingleInternalConstructor("1");
+            var result = setter(obj, "2");
+            result.Value.Should().Be("2");
+        }
+
+        [Fact]
+        public void ShouldChoosePublicConstructorOverInternalConstructor()
+        {
+            Expression<Func<TypeWithPublicAndInternalConstructor, string>> expr = o => o.Value;
+            var setter = expr.CreateImmutableSetter();
+            var obj = new TypeWithPublicAndInternalConstructor("1");
+            var result = setter(obj, "2");
+            result.Value.Should().Be("2");
+        }
+
         public class A
         {
             public A(B b)
@@ -105,6 +125,31 @@ namespace Elmish.Net.Test
         public class D
         {
             public D(string value)
+            {
+                Value = value;
+            }
+
+            public string Value { get; }
+        }
+
+        public class TypeWithSingleInternalConstructor
+        {
+            internal TypeWithSingleInternalConstructor(string value)
+            {
+                Value = value;
+            }
+
+            public string Value { get; }
+        }
+
+        public class TypeWithPublicAndInternalConstructor
+        {
+            internal TypeWithPublicAndInternalConstructor(string value, int dummy)
+            {
+                Value = value;
+            }
+
+            public TypeWithPublicAndInternalConstructor(string value)
             {
                 Value = value;
             }
