@@ -22,7 +22,6 @@ namespace Elmish.Net
             Func<TMessage, TState, (TState, Cmd<TMessage>)> update,
             Func<TState, Dispatch<TMessage>, IVDomNode<TViewNode, TMessage>> view,
             Func<TState, Sub<TMessage>> subscriptions,
-            IScheduler dispatcherScheduler,
             Expression<Func<TViewNode>> rootNode)
         {
             var messageSubject = new Subject<TMessage>();
@@ -94,7 +93,6 @@ namespace Elmish.Net
                 })
                 .DistinctUntilChanged()
                 .Where(merge => merge != null)
-                .ObserveOn(dispatcherScheduler)
                 .Subscribe(merge =>
                 {
                     var oldNode = getter();
@@ -113,7 +111,6 @@ namespace Elmish.Net
             (TState State, Cmd<TMessage> Cmd) init,
             Func<TMessage, TState, (TState, Cmd<TMessage>)> update,
             Func<TState, Dispatch<TMessage>, IVDomNode<TViewNode, TMessage>> view,
-            IScheduler dispatcherScheduler,
             Expression<Func<TViewNode>> rootNode)
         {
             Run(
@@ -122,7 +119,6 @@ namespace Elmish.Net
                 update,
                 view,
                 _ => Sub.None<TMessage>(),
-                dispatcherScheduler,
                 rootNode);
         }
     }

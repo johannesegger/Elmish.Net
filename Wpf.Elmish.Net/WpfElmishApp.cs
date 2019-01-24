@@ -29,7 +29,6 @@ namespace Wpf.Elmish.Net
                 update,
                 view,
                 subscriptions,
-                DispatcherScheduler.Current,
                 () => app.MainWindow);
             app.Run();
         }
